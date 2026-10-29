@@ -2,4 +2,46 @@ plugins {
     id 'application'
 }
 
-group =
+group = 'game'
+version = '0.1.0'
+
+repositories {
+    mavenCentral()
+}
+
+def lwjglVersion = '3.3.3'
+def jomlVersion = '1.10.5'
+
+def currentOs = org.gradle.internal.os.OperatingSystem.current()
+def arch = System.getProperty('os.arch')
+def natives
+if (currentOs.windows) {
+    natives = 'natives-windows'
+} else if (currentOs.macOsX) {
+    natives = (arch == 'aarch64') ? 'natives-macos-arm64' : 'natives-macos'
+} else {
+    natives = 'natives-linux'
+}
+
+dependencies {
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-glfw'
+    implementation 'org.lwjgl:lwjgl-opengl'
+    implementation "org.joml:joml:$jomlVersion"
+
+    runtimeOnly "org.lwjgl:lwjgl::$natives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$natives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$natives"
+}
+
+application {
+    mainClass = 'game.Main'
+}
+
+tasks.named('run') {
+    if (org.gradle.internal.os.OperatingSystem.current().macOsX) {
+        jvmArgs += ['-XstartOnFirstThread']
+    }
+}
