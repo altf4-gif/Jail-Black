@@ -3,13 +3,11 @@ package engine;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
-
 import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-
 import static org.lwjgl.opengl.GL33.*;
 
 public class ShaderProgram {
@@ -17,9 +15,7 @@ public class ShaderProgram {
     private final FloatBuffer matrixBuffer = MemoryUtil.memAllocFloat(16);
     private final Map<String, Integer> uniformCache = new HashMap<>();
 
-    private ShaderProgram(int programId) {
-        this.programId = programId;
-    }
+    private ShaderProgram(int programId) { this.programId = programId; }
 
     public static ShaderProgram fromResources(String vertexPath, String fragmentPath) {
         String vertexSource = loadResource(vertexPath);
@@ -36,7 +32,6 @@ public class ShaderProgram {
             glDeleteProgram(program);
             throw new IllegalStateException("Program link error:\n" + log);
         }
-
         glDetachShader(program, vertexShader);
         glDetachShader(program, fragmentShader);
         glDeleteShader(vertexShader);
@@ -58,39 +53,36 @@ public class ShaderProgram {
 
     private static String loadResource(String path) {
         try (InputStream in = ShaderProgram.class.getClassLoader().getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalArgumentException("Resource not found: " + path);
-            }
+            if (in == null) throw new IllegalArgumentException("Resource not found: " + path);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load " + path, e);
-        }
+        } catch (Exception e) { throw new RuntimeException("Failed to load " + path, e); }
     }
 
-    public void use() {
-        glUseProgram(programId);
-    }
+    public void use() { glUseProgram(programId); }
 
-    private int location(String name) {
-        return uniformCache.computeIfAbsent(name, n -> glGetUniformLocation(programId, n));
-    }
+    private int location(String name) { return uniformCache.computeIfAbsent(name, n -> glGetUniformLocation(programId, n)); }
 
     public void setUniform(String name, Matrix4f value) {
-        int location = location(name);
-        if (location < 0) return;
-        value.get(matrixBuffer);
-        glUniformMatrix4fv(location, false, matrixBuffer);
+        int loc = location(name); if (loc < 0) return;
+        value.get(matrixBuffer); glUniformMatrix4fv(loc, false, matrixBuffer);
     }
 
     public void setUniform(String name, Vector3f value) {
-        int location = location(name);
-        if (location < 0) return;
-        glUniform3f(location, value.x, value.y, value.z);
+        int loc = location(name); if (loc < 0) return;
+        glUniform3f(loc, value.x, value.y, value.z);
+    }
+
+    public void setUniform(String name, int value) {
+        int loc = location(name); if (loc < 0) return;
+        glUniform1i(loc, value);
+    }
+
+    public void setUniform(String name, float value) {
+        int loc = location(name); if (loc < 0) return;
+        glUniform1f(loc, value);
     }
 
     public void cleanup() {
-        glUseProgram(0);
-        glDeleteProgram(programId);
-        MemoryUtil.memFree(matrixBuffer);
+        glUseProgram(0); glDeleteProgram(programId); MemoryUtil.memFree(matrixBuffer);
     }
 }

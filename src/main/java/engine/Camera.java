@@ -4,40 +4,38 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 public class Camera {
-    private float yaw = 0.55f;
-    private float pitch = 0.45f;
-    private float distance = 11.0f;
-    private final Vector3f target = new Vector3f(0f, 1.6f, 0f);
+    private final Vector3f position;
+    private float yaw = -90.0f;
+    private float pitch = -10.0f;
     private final Vector3f up = new Vector3f(0f, 1f, 0f);
-    private static final float MIN_PITCH = -1.45f;
-    private static final float MAX_PITCH = 1.45f;
-    private static final float MIN_DISTANCE = 3.0f;
-    private static final float MAX_DISTANCE = 45.0f;
+
+    public Camera() {
+        position = new Vector3f(0f, 3f, 8f); 
+    }
 
     public void rotate(float deltaX, float deltaY) {
-        yaw += deltaX * 0.005f;
-        pitch += deltaY * 0.005f;
-        pitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, pitch));
+        float sensitivity = 0.1f;
+        yaw += deltaX * sensitivity;
+        pitch -= deltaY * sensitivity;
+        if (pitch > 89.0f) pitch = 89.0f;
+        if (pitch < -89.0f) pitch = -89.0f;
     }
 
-    public void zoom(float amount) {
-        distance -= amount;
-        distance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, distance));
+    public Vector3f getFront() {
+        Vector3f front = new Vector3f();
+        front.x = (float) (Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
+        front.y = (float) Math.sin(Math.toRadians(pitch));
+        front.z = (float) (Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
+        return front.normalize();
     }
 
-    public Matrix4f viewMatrix() {
-        Vector3f offset = new Vector3f(
-                (float) (Math.cos(pitch) * Math.sin(yaw)),
-                (float) Math.sin(pitch),
-                (float) (Math.cos(pitch) * Math.cos(yaw))
-        ).mul(distance);
-        Vector3f position = new Vector3f(target).add(offset);
-        return new Matrix4f().lookAt(position, target, up);
-    }
+    public Vector3f getPosition() { return new Vector3f(position); }
+    public void setPosition(Vector3f pos) { position.set(pos); }
+    public Vector3f getUp() { return new Vector3f(up); }
 
-    public Matrix4f viewProjection(float aspect) {
-        Matrix4f projection = new Matrix4f()
-                .perspective((float) Math.toRadians(60.0), aspect, 0.1f, 300.0f);
-        return projection.mul(viewMatrix());
+    public Matrix4f getViewProjection(Vector3f camPos, Vector3f target, Vector3f upVec, float aspect) {
+        Matrix4f view = new Matrix4f().lookAt(camPos, target, upVec);
+        Matrix4f projection = new Matrix4f().perspective((float) Math.toRadians(60.0), aspect, 0.1f, 300.0f);
+        return projection.mul(view);
     }
 }

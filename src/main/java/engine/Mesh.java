@@ -1,28 +1,25 @@
 package engine;
 
 import org.lwjgl.system.MemoryUtil;
-
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-
 import static org.lwjgl.opengl.GL30.*;
 
 public class Mesh {
-    private final int vaoId;
-    private final int vboId;
-    private final int eboId;
-    private final int indexCount;
+    private final int vaoId, vboId, eboId, indexCount;
 
     public Mesh(float[] vertices, int[] indices) {
         this.indexCount = indices.length;
         vaoId = glGenVertexArrays();
         glBindVertexArray(vaoId);
+
         vboId = glGenBuffers();
         glBindBuffer(GL_ARRAY_BUFFER, vboId);
         FloatBuffer vertexBuffer = MemoryUtil.memAllocFloat(vertices.length);
         vertexBuffer.put(vertices).flip();
         glBufferData(GL_ARRAY_BUFFER, vertexBuffer, GL_STATIC_DRAW);
         MemoryUtil.memFree(vertexBuffer);
+
         eboId = glGenBuffers();
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboId);
         IntBuffer indexBuffer = MemoryUtil.memAllocInt(indices.length);
@@ -30,11 +27,14 @@ public class Mesh {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBuffer, GL_STATIC_DRAW);
         MemoryUtil.memFree(indexBuffer);
 
-        int stride = 6 * Float.BYTES;
+        int stride = 8 * Float.BYTES;
         glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, 3L * Float.BYTES);
         glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, false, stride, 6L * Float.BYTES);
+        glEnableVertexAttribArray(2);
+
         glBindVertexArray(0);
     }
 
@@ -45,8 +45,6 @@ public class Mesh {
     }
 
     public void cleanup() {
-        glDeleteBuffers(vboId);
-        glDeleteBuffers(eboId);
-        glDeleteVertexArrays(vaoId);
+        glDeleteBuffers(vboId); glDeleteBuffers(eboId); glDeleteVertexArrays(vaoId);
     }
 }
