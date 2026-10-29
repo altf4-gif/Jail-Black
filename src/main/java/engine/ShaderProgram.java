@@ -62,25 +62,10 @@ public class ShaderProgram {
 
     private int location(String name) { return uniformCache.computeIfAbsent(name, n -> glGetUniformLocation(programId, n)); }
 
-    public void setUniform(String name, Matrix4f value) {
-        int loc = location(name); if (loc < 0) return;
-        value.get(matrixBuffer); glUniformMatrix4fv(loc, false, matrixBuffer);
-    }
-
-    public void setUniform(String name, Vector3f value) {
-        int loc = location(name); if (loc < 0) return;
-        glUniform3f(loc, value.x, value.y, value.z);
-    }
-
-    public void setUniform(String name, int value) {
-        int loc = location(name); if (loc < 0) return;
-        glUniform1i(loc, value);
-    }
-
-    public void setUniform(String name, float value) {
-        int loc = location(name); if (loc < 0) return;
-        glUniform1f(loc, value);
-    }
+    public void setUniform(String name, Matrix4f value) { int l = location(name); if (l >= 0) { value.get(matrixBuffer); glUniformMatrix4fv(l, false, matrixBuffer); } }
+    public void setUniform(String name, Vector3f value) { int l = location(name); if (l >= 0) glUniform3f(l, value.x, value.y, value.z); }
+    public void setUniform(String name, int value) { int l = location(name); if (l >= 0) glUniform1i(l, value); }
+    public void setUniform(String name, float value) { int l = location(name); if (l >= 0) glUniform1f(l, value); }
 
     public void cleanup() {
         glUseProgram(0); glDeleteProgram(programId); MemoryUtil.memFree(matrixBuffer);

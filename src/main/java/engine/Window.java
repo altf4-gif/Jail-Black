@@ -55,4 +55,6 @@ public class Window {
     }
     public long getHandle() { return handle; }
     public float getAspect() { return (float) framebufferWidth / (float) framebufferHeight; }
+    public int getWidth() { return framebufferWidth; }
+    public int getHeight() { return framebufferHeight; }
 }

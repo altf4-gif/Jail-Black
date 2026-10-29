@@ -7,9 +7,10 @@ import static org.lwjgl.opengl.GL33.*;
 
 public class Texture {
     private final int id;
+    private final int width, height;
 
-    private Texture(int id) {
-        this.id = id;
+    private Texture(int id, int width, int height) {
+        this.id = id; this.width = width; this.height = height;
     }
 
     public static Texture createFromBufferedImage(BufferedImage img) {
@@ -42,14 +43,20 @@ public class Texture {
         MemoryUtil.memFree(buffer);
         glBindTexture(GL_TEXTURE_2D, 0);
 
-        return new Texture(textureId);
+        return new Texture(textureId, width, height);
     }
 
-    public void bind() {
-        glBindTexture(GL_TEXTURE_2D, id);
+    public static Texture createEmpty(int width, int height) {
+        int textureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (ByteBuffer) null);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return new Texture(textureId, width, height);
     }
-    
-    public void cleanup() {
-        glDeleteTextures(id);
-    }
+
+    public void bind() { glBindTexture(GL_TEXTURE_2D, id); }
+    public int getId() { return id; }
+    public void cleanup() { glDeleteTextures(id); }
 }
