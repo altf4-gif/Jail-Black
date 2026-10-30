@@ -25,9 +25,7 @@ public class Window {
     public void create() {
         GLFWErrorCallback.createPrint(System.err).set();
 
-        if (!glfwInit()) {
-            throw new IllegalStateException("Unable to initialize GLFW");
-        }
+        if (!glfwInit()) throw new IllegalStateException("Unable to initialize GLFW");
 
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
@@ -38,9 +36,7 @@ public class Window {
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
         handle = glfwCreateWindow(width, height, title, NULL, NULL);
-        if (handle == NULL) {
-            throw new RuntimeException("Failed to create the GLFW window");
-        }
+        if (handle == NULL) throw new RuntimeException("Failed to create the GLFW window");
 
         glfwSetWindowSizeCallback(handle, (window, w, h) -> {
             this.width = w;
@@ -62,14 +58,8 @@ public class Window {
         GL.createCapabilities();
     }
 
-    public boolean shouldClose() {
-        return glfwWindowShouldClose(handle);
-    }
-
-    public void swapAndPoll() {
-        glfwSwapBuffers(handle);
-        glfwPollEvents();
-    }
+    public boolean shouldClose() { return glfwWindowShouldClose(handle); }
+    public void swapAndPoll() { glfwSwapBuffers(handle); glfwPollEvents(); }
 
     public void destroy() {
         glfwDestroyWindow(handle);

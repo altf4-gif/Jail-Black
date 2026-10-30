@@ -2,28 +2,64 @@
 in vec3 vNormal;
 in vec2 vUv;
 in vec3 vWorldPos;
-in vec3 vInstanceColor;
+in vec4 vInstanceColor;
 
 uniform vec3 uColor;
-uniform bool uInstanced;
+uniform sampler2D uTexture;
+uniform int uUseTexture;
+uniform float uAlpha;
+uniform int uMode;
 uniform vec3 uLightDir;
 uniform vec3 uCamPos;
+uniform int uUnlit;
+uniform bool uInstanced;
 
 out vec4 fragColor;
 
 void main() {
-    vec3 baseColor = uInstanced ? vInstanceColor : uColor;
-    
+    vec4 baseColor = uInstanced ? vInstanceColor : vec4(uColor, uAlpha);
+
+    if (uUnlit == 1) {
+        fragColor = baseColor;
+        return;
+    }
+
     vec3 normal = normalize(vNormal);
+    if (uMode == 10) {
+        normal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+    }
+
     vec3 lightDir = normalize(uLightDir);
     float diff = max(dot(normal, lightDir), 0.0);
-    
-    vec3 viewDir = normalize(uCamPos - vWorldPos);
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfDir), 0.0), 32.0) * 0.3;
-    
-    float ambient = 0.4;
-    vec3 lit = baseColor * (ambient + diff * 0.7) + vec3(spec);
-    
-    fragColor = vec4(lit, 1.0);
+
+    vec4 texColor = vec4(1.0);
+    if (uUseTexture == 1) {
+        texColor = texture(uTexture, vUv);
+    }
+    baseColor = baseColor * texColor;
+    float ambient = 0.35;
+
+    if (uMode == 8) {
+        if (diff > 0.6) diff = 1.0;
+        else if (diff > 0.2) diff = 0.5;
+        else diff = 0.0;
+        ambient = 0.2;
+    } else if (uMode == 9) {
+        diff = 0.0;
+        ambient = 1.0;
+    } else if (uMode == 12) {
+        baseColor.rgb = vec3(0.6);
+        ambient = 0.1;
+        vec3 viewDir = normalize(uCamPos - vWorldPos);
+        vec3 halfVec = normalize(lightDir + viewDir);
+        float spec = pow(max(dot(normal, halfVec), 0.0), 128.0);
+        baseColor.rgb += vec3(spec) * 1.5;
+    } else if (uMode == 1) {
+        diff = step(0.3, diff);
+        ambient = 0.5;
+    }
+
+    vec3 lit = baseColor.rgb * (ambient + diff * 0.85);
+    fragColor = vec4(lit, baseColor.a);
 }
+// === END OF FILE ===

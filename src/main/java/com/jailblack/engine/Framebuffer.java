@@ -43,9 +43,7 @@ public class Framebuffer {
         glViewport(0, 0, width, height);
     }
 
-    public void unbind() {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
+    public void unbind() { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
 
     public int getTextureId() { return textureId; }
     public int getFboId() { return fboId; }

@@ -2,7 +2,7 @@ package com.jailblack.scene;
 
 public class Voxel {
     public int x, y, z;
-    public String color;
+    public String color; // Формат: #RRGGBB или #RRGGBBAA
 
     public Voxel() {}
 
@@ -12,4 +12,15 @@ public class Voxel {
         this.z = z;
         this.color = color;
     }
+
+    public float getAlpha() {
+        if (color == null || color.length() < 9) return 1.0f;
+        try {
+            int a = Integer.parseInt(color.substring(7, 9), 16);
+            return a / 255f;
+        } catch (Exception e) {
+            return 1.0f;
+        }
+    }
 }
+// === END OF FILE ===

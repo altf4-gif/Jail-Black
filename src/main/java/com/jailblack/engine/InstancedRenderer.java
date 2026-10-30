@@ -4,7 +4,9 @@ import com.jailblack.scene.Voxel;
 import com.jailblack.scene.VoxelModel;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.lwjgl.system.MemoryUtil;
 
+import java.nio.FloatBuffer;
 import java.util.List;
 
 import static org.lwjgl.opengl.GL33.*;
@@ -19,15 +21,15 @@ public class InstancedRenderer {
     public InstancedRenderer(Mesh baseMesh, int capacity) {
         this.baseMesh = baseMesh;
         this.capacity = capacity;
-        this.instanceData = new float[capacity * 19];
+        this.instanceData = new float[capacity * 20];
 
         baseMesh.bind();
 
         instanceVbo = glGenBuffers();
         glBindBuffer(GL_ARRAY_BUFFER, instanceVbo);
-        glBufferData(GL_ARRAY_BUFFER, (long) capacity * 19 * Float.BYTES, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, (long) capacity * 20 * Float.BYTES, GL_DYNAMIC_DRAW);
 
-        int stride = 19 * Float.BYTES;
+        int stride = 20 * Float.BYTES;
 
         for (int i = 0; i < 4; i++) {
             int location = 3 + i;
@@ -37,7 +39,7 @@ public class InstancedRenderer {
         }
 
         glEnableVertexAttribArray(7);
-        glVertexAttribPointer(7, 3, GL_FLOAT, false, stride, 16L * Float.BYTES);
+        glVertexAttribPointer(7, 4, GL_FLOAT, false, stride, 16L * Float.BYTES);
         glVertexAttribDivisor(7, 1);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -48,9 +50,9 @@ public class InstancedRenderer {
         count = 0;
     }
 
-    public void submit(Matrix4f model, Vector3f color) {
+    public void submit(Matrix4f model, Vector3f color, float alpha) {
         if (count >= capacity) return;
-        int offset = count * 19;
+        int offset = count * 20;
 
         float[] mat = new float[16];
         model.get(mat);
@@ -59,16 +61,29 @@ public class InstancedRenderer {
         instanceData[offset + 16] = color.x;
         instanceData[offset + 17] = color.y;
         instanceData[offset + 18] = color.z;
+        instanceData[offset + 19] = alpha;
 
         count++;
     }
 
     public void flush() {
         if (count == 0) return;
+        if (instanceVbo == 0) return; // VBO не создан
 
         baseMesh.bind();
         glBindBuffer(GL_ARRAY_BUFFER, instanceVbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, (long) count * 19 * Float.BYTES, instanceData);
+
+        // ИСПРАВЛЕНИЕ: direct buffer через MemoryUtil (не FloatBuffer.wrap —
+        // тот создаёт heap buffer, и AMD-драйвер падает при чтении через JNI)
+        int size = count * 20;
+        FloatBuffer buffer = MemoryUtil.memAllocFloat(size);
+        buffer.put(instanceData, 0, size);
+        buffer.flip();
+
+        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
+
+        MemoryUtil.memFree(buffer);
+
         glDrawElementsInstanced(GL_TRIANGLES, baseMesh.getIndexCount(), GL_UNSIGNED_INT, 0L, count);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         baseMesh.unbind();
@@ -81,7 +96,8 @@ public class InstancedRenderer {
             for (Voxel v : model.voxels) {
                 Matrix4f voxelMatrix = new Matrix4f(modelMatrix).translate(v.x, v.y, v.z);
                 Vector3f color = hexToColor(v.color);
-                submit(voxelMatrix, color);
+                float alpha = v.getAlpha();
+                submit(voxelMatrix, color, alpha);
             }
         }
         flush();
@@ -100,9 +116,12 @@ public class InstancedRenderer {
     }
 
     public void cleanup() {
-        glDeleteBuffers(instanceVbo);
+        if (instanceVbo != 0) {
+            glDeleteBuffers(instanceVbo);
+        }
     }
 
     public int getCount() { return count; }
     public int getCapacity() { return capacity; }
 }
+// === END OF FILE ===

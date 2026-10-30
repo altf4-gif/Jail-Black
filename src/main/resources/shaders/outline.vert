@@ -9,3 +9,4 @@ uniform mat4 uModel;
 void main() {
     gl_Position = uViewProj * uModel * vec4(aPos, 1.0);
 }
+// === END OF FILE ===

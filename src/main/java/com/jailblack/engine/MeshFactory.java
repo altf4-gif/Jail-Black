@@ -3,9 +3,12 @@ package com.jailblack.engine;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.lwjgl.opengl.GL11.GL_LINES;
+
 public final class MeshFactory {
 
-    private MeshFactory() {}
+    private MeshFactory() {
+    }
 
     public static Mesh box(float width, float height, float depth) {
         float x = width / 2f, y = height / 2f, z = depth / 2f;
@@ -38,7 +41,8 @@ public final class MeshFactory {
         }
 
         for (int i = 0; i < (divisions + 1) * 4; i += 2) {
-            idx.add(i); idx.add(i + 1);
+            idx.add(i);
+            idx.add(i + 1);
         }
         return buildLines(v, idx);
     }
@@ -58,23 +62,37 @@ public final class MeshFactory {
         };
         for (float[] c : corners) {
             v.add(c[0]); v.add(c[1]); v.add(c[2]);
-            v.add(0f); v.add(0f); v.add(0f); v.add(0f); v.add(0f);
+            v.add(0f); v.add(0f); v.add(0f);
+            v.add(0f); v.add(0f);
         }
-        for (int[] e : edges) { idx.add(e[0]); idx.add(e[1]); }
+        for (int[] e : edges) {
+            idx.add(e[0]);
+            idx.add(e[1]);
+        }
         return buildLines(v, idx);
     }
 
-    private static void quad(List<Float> vertices, List<Integer> indices, float nx, float ny, float nz, float[] p0, float[] p1, float[] p2, float[] p3, float[][] uvs) {
+    private static void quad(List<Float> vertices, List<Integer> indices, float nx, float ny, float nz,
+                             float[] p0, float[] p1, float[] p2, float[] p3, float[][] uvs) {
         int base = vertices.size() / 8;
         float[][] pts = {p0, p1, p2, p3};
         for (int i = 0; i < 4; i++) {
             float[] p = pts[i];
-            vertices.add(p[0]); vertices.add(p[1]); vertices.add(p[2]);
-            vertices.add(nx); vertices.add(ny); vertices.add(nz);
-            vertices.add(uvs[i][0]); vertices.add(uvs[i][1]);
+            vertices.add(p[0]);
+            vertices.add(p[1]);
+            vertices.add(p[2]);
+            vertices.add(nx);
+            vertices.add(ny);
+            vertices.add(nz);
+            vertices.add(uvs[i][0]);
+            vertices.add(uvs[i][1]);
         }
-        indices.add(base); indices.add(base + 1); indices.add(base + 2);
-        indices.add(base); indices.add(base + 2); indices.add(base + 3);
+        indices.add(base);
+        indices.add(base + 1);
+        indices.add(base + 2);
+        indices.add(base);
+        indices.add(base + 2);
+        indices.add(base + 3);
     }
 
     private static Mesh build(List<Float> vertices, List<Integer> indices) {
@@ -90,6 +108,7 @@ public final class MeshFactory {
         for (int i = 0; i < vArr.length; i++) vArr[i] = vertices.get(i);
         int[] iArr = new int[indices.size()];
         for (int i = 0; i < iArr.length; i++) iArr[i] = indices.get(i);
-        return new Mesh(vArr, iArr);
+        return new Mesh(vArr, iArr, GL_LINES);
     }
 }
+// === END OF FILE ===

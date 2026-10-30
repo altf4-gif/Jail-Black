@@ -17,3 +17,4 @@ void main() {
     vUv = aUv;
     gl_Position = uViewProj * worldPos;
 }
+// === END OF FILE ===

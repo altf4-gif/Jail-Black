@@ -30,20 +30,4 @@ public class Framebuffer {
     }
 
     public void bind() {
-        glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-        glViewport(0, 0, width, height);
-    }
-
-    public void unbind(int screenWidth, int screenHeight) {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, screenWidth, screenHeight);
-    }
-
-    public Texture getColorTexture() { return colorTexture; }
-
-    public void cleanup() {
-        glDeleteFramebuffers(fboId);
-        glDeleteRenderbuffers(rboId);
-        colorTexture.cleanup();
-    }
-}
+        glBindFramebuffer(GL_F

@@ -9,9 +9,7 @@ public class Camera {
     private float pitch = -10.0f;
     private final Vector3f up = new Vector3f(0f, 1f, 0f);
 
-    public Camera() {
-        position = new Vector3f(0f, 3f, 8f); 
-    }
+    public Camera() { position = new Vector3f(0f, 3f, 8f); }
 
     public void rotate(float deltaX, float deltaY) {
         float sensitivity = 0.1f;
@@ -34,8 +32,7 @@ public class Camera {
     public Vector3f getUp() { return new Vector3f(up); }
 
     public Matrix4f getViewMatrix() {
-        Vector3f front = getFront();
-        return new Matrix4f().lookAt(position, new Vector3f(position).add(front), up);
+        return new Matrix4f().lookAt(position, new Vector3f(position).add(getFront()), up);
     }
 
     public Matrix4f getProjectionMatrix(float aspect) {
