@@ -30,6 +30,7 @@ public class InstancedRenderer {
 
         int stride = 19 * Float.BYTES;
 
+        // Матрица модели (mat4) = 4 x vec4
         for (int i = 0; i < 4; i++) {
             int location = 3 + i;
             glEnableVertexAttribArray(location);
@@ -37,6 +38,7 @@ public class InstancedRenderer {
             glVertexAttribDivisor(location, 1);
         }
 
+        // Цвет (vec3)
         glEnableVertexAttribArray(7);
         glVertexAttribPointer(7, 3, GL_FLOAT, false, stride, 16L * Float.BYTES);
         glVertexAttribDivisor(7, 1);
@@ -69,8 +71,11 @@ public class InstancedRenderer {
 
         baseMesh.bind();
         glBindBuffer(GL_ARRAY_BUFFER, instanceVbo);
+
+        // ИСПРАВЛЕНИЕ: LWJGL 3 не принимает size — размер берётся из FloatBuffer.
         FloatBuffer buffer = FloatBuffer.wrap(instanceData, 0, count * 19);
         glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
+
         glDrawElementsInstanced(GL_TRIANGLES, baseMesh.getIndexCount(), GL_UNSIGNED_INT, 0L, count);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         baseMesh.unbind();

@@ -14,9 +14,7 @@ public class Camera {
     private final Vector3f up = new Vector3f(0f, 1f, 0f);
     private Mode mode = Mode.FLY;
 
-    public Camera() {
-        updateFlyPosition();
-    }
+    public Camera() { updateFlyPosition(); }
 
     public void setMode(Mode mode) {
         if (this.mode == mode) return;
@@ -36,10 +34,7 @@ public class Camera {
         pitch -= deltaY * sensitivity;
         if (pitch > 89.0f) pitch = 89.0f;
         if (pitch < -89.0f) pitch = -89.0f;
-
-        if (mode == Mode.ORBIT) {
-            updateOrbitPosition();
-        }
+        if (mode == Mode.ORBIT) updateOrbitPosition();
     }
 
     public void pan(float deltaX, float deltaY) {
@@ -47,10 +42,8 @@ public class Camera {
         Vector3f front = getFront();
         Vector3f right = new Vector3f(front).cross(up).normalize();
         Vector3f camUp = new Vector3f(right).cross(front).normalize();
-
         Vector3f delta = new Vector3f(right).mul(-deltaX * sensitivity)
                 .add(new Vector3f(camUp).mul(deltaY * sensitivity));
-
         position.add(delta);
         orbitTarget.add(delta);
     }
@@ -73,8 +66,7 @@ public class Camera {
         position.set(orbitTarget).sub(x * orbitDistance, y * orbitDistance, z * orbitDistance);
     }
 
-    private void updateFlyPosition() {
-    }
+    private void updateFlyPosition() { }
 
     public void focus(Vector3f target, float distance) {
         orbitTarget.set(target);
@@ -91,21 +83,10 @@ public class Camera {
         return front.normalize();
     }
 
-    public Vector3f getRight() {
-        return new Vector3f(getFront()).cross(up).normalize();
-    }
-
-    public Vector3f getUp() {
-        return new Vector3f(getRight()).cross(getFront()).normalize();
-    }
-
-    public Vector3f getPosition() {
-        return new Vector3f(position);
-    }
-
-    public void setPosition(Vector3f pos) {
-        position.set(pos);
-    }
+    public Vector3f getRight() { return new Vector3f(getFront()).cross(up).normalize(); }
+    public Vector3f getUp() { return new Vector3f(getRight()).cross(getFront()).normalize(); }
+    public Vector3f getPosition() { return new Vector3f(position); }
+    public void setPosition(Vector3f pos) { position.set(pos); }
 
     public Matrix4f getViewMatrix() {
         return new Matrix4f().lookAt(position, new Vector3f(position).add(getFront()), up);

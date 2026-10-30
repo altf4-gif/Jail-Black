@@ -20,19 +20,13 @@ public class Commands {
         }
 
         @Override
-        public void execute() {
-            scene.addModel(model);
-        }
+        public void execute() { scene.addModel(model); }
 
         @Override
-        public void undo() {
-            scene.removeModel(model);
-        }
+        public void undo() { scene.removeModel(model); }
 
         @Override
-        public String getDescription() {
-            return "Spawn " + model.name;
-        }
+        public String getDescription() { return "Spawn " + model.name; }
     }
 
     public static class DeleteCommand extends Command {
@@ -45,21 +39,15 @@ public class Commands {
         }
 
         @Override
-        public void execute() {
-            scene.removeModels(models);
-        }
+        public void execute() { scene.removeModels(models); }
 
         @Override
         public void undo() {
-            for (VoxelModel m : models) {
-                scene.addModel(m);
-            }
+            for (VoxelModel m : models) scene.addModel(m);
         }
 
         @Override
-        public String getDescription() {
-            return "Delete " + models.size() + " object(s)";
-        }
+        public String getDescription() { return "Delete " + models.size() + " object(s)"; }
     }
 
     public static class MoveCommand extends Command {
@@ -75,22 +63,16 @@ public class Commands {
 
         @Override
         public void execute() {
-            for (int i = 0; i < models.size(); i++) {
-                models.get(i).transform.position.set(newPositions[i]);
-            }
+            for (int i = 0; i < models.size(); i++) models.get(i).transform.position.set(newPositions[i]);
         }
 
         @Override
         public void undo() {
-            for (int i = 0; i < models.size(); i++) {
-                models.get(i).transform.position.set(oldPositions[i]);
-            }
+            for (int i = 0; i < models.size(); i++) models.get(i).transform.position.set(oldPositions[i]);
         }
 
         @Override
-        public String getDescription() {
-            return "Move " + models.size() + " object(s)";
-        }
+        public String getDescription() { return "Move " + models.size() + " object(s)"; }
     }
 
     public static class ColorCommand extends Command {
@@ -106,26 +88,19 @@ public class Commands {
 
         @Override
         public void execute() {
-            for (VoxelModel model : models) {
-                for (Voxel v : model.voxels) {
-                    v.color = newColor;
-                }
-            }
+            for (VoxelModel model : models)
+                for (Voxel v : model.voxels) v.color = newColor;
         }
 
         @Override
         public void undo() {
             for (int i = 0; i < models.size(); i++) {
                 VoxelModel model = models.get(i);
-                for (int j = 0; j < model.voxels.size(); j++) {
-                    model.voxels.get(j).color = oldColors[i][j];
-                }
+                for (int j = 0; j < model.voxels.size(); j++) model.voxels.get(j).color = oldColors[i][j];
             }
         }
 
         @Override
-        public String getDescription() {
-            return "Change color";
-        }
+        public String getDescription() { return "Change color"; }
     }
 }

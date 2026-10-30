@@ -36,7 +36,7 @@ public class EditorState {
     private final SpawnManager spawnManager;
     private final MapManager mapManager;
 
-    private Vector3f currentColor = new Vector3f(0.85f, 0.35f, 0.32f);
+    private final Vector3f currentColor = new Vector3f(0.85f, 0.35f, 0.32f);
     private final Vector3f[] palette = {
         new Vector3f(0.85f, 0.35f, 0.32f),
         new Vector3f(0.35f, 0.78f, 0.45f),
@@ -76,31 +76,33 @@ public class EditorState {
         setupInputCallbacks();
     }
 
-    public void setSceneFramebuffer(Framebuffer fb) {
-        this.sceneFramebuffer = fb;
-    }
-
     private void setupInputCallbacks() {
         GLFW.glfwSetCursorPosCallback(window.getHandle(), (win, xpos, ypos) -> {
-            if (ImGui.getIO().getWantCaptureMouse()) return;
-
             if (Double.isNaN(lastMouseX)) {
                 lastMouseX = xpos;
                 lastMouseY = ypos;
                 return;
             }
-
             float dx = (float) (xpos - lastMouseX);
             float dy = (float) (ypos - lastMouseY);
+            lastMouseX = xpos;
+            lastMouseY = ypos;
+
+            if (ImGui.getIO().getWantCaptureMouse()) return;
 
             if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS) {
                 camera.rotate(dx, dy);
             } else if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == GLFW.GLFW_PRESS) {
                 camera.pan(dx, dy);
             }
+        });
 
-            lastMouseX = xpos;
-            lastMouseY = ypos;
+        GLFW.glfwSetMouseButtonCallback(window.getHandle(), (win, button, action, mods) -> {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && action == GLFW.GLFW_PRESS) {
+                if (!ImGui.getIO().getWantCaptureMouse()) {
+                    handleLeftClick();
+                }
+            }
         });
     }
 
@@ -152,42 +154,39 @@ public class EditorState {
                 selectedObjects.clear();
             }
         }
-
-        if (!ImGui.getIO().getWantCaptureMouse()) {
-            if (GLFW.glfwGetMouseButton(window.getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) {
-                handleLeftClick();
-            }
-        }
     }
 
-    private boolean leftClickHandled = false;
-
     private void handleLeftClick() {
-        boolean isDown = GLFW.glfwGetMouseButton(window.getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
-        if (isDown && !leftClickHandled) {
-            leftClickHandled = true;
-            VoxelModel picked = selectionManager.pick();
-            boolean shift = GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS;
+        VoxelModel picked = selectionManager.pick();
+        boolean shift = GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS;
 
-            if (picked != null) {
-                if (shift) {
-                    if (selectedObjects.contains(picked)) selectedObjects.remove(picked);
-                    else selectedObjects.add(picked);
-                } else {
-                    selectedObjects.clear();
-                    selectedObjects.add(picked);
-                }
+        if (picked != null) {
+            if (shift) {
+                if (selectedObjects.contains(picked)) selectedObjects.remove(picked);
+                else selectedObjects.add(picked);
             } else {
-                spawnManager.spawnInFront(camera, currentColor);
+                selectedObjects.clear();
+                selectedObjects.add(picked);
+            }
+        } else {
+            spawnManager.spawnInFront(camera, currentColor);
+            if (!scene.getModels().isEmpty()) {
                 selectedObjects.clear();
                 selectedObjects.add(scene.getModels().get(scene.getModels().size() - 1));
             }
-        } else if (!isDown) {
-            leftClickHandled = false;
         }
     }
 
     private void renderScene() {
+        int w = window.getWidth();
+        int h = window.getHeight();
+        if (w <= 0 || h <= 0) return;
+
+        if (sceneFramebuffer.getWidth() != w || sceneFramebuffer.getHeight() != h) {
+            sceneFramebuffer.cleanup();
+            sceneFramebuffer = new Framebuffer(w, h);
+        }
+
         sceneFramebuffer.bind();
         glClearColor(0.45f, 0.55f, 0.8f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -200,7 +199,10 @@ public class EditorState {
 
         basicShader.use();
         basicShader.setUniform("uViewProj", viewProj);
-        basicShader.setUniform("uInstanced", true);
+        basicShader.setUniform("uInstanced", 1);
+        basicShader.setUniform("uMode", 0);
+        basicShader.setUniform("uUseTexture", 0);
+        basicShader.setUniform("uAlpha", 1.0f);
         basicShader.setUniform("uLightDir", new Vector3f(0.5f, 1.0f, 0.3f).normalize());
         basicShader.setUniform("uCamPos", camera.getPosition());
         instancedRenderer.render(scene.getModels());
@@ -219,7 +221,7 @@ public class EditorState {
         }
 
         sceneFramebuffer.unbind();
-        glViewport(0, 0, window.getWidth(), window.getHeight());
+        glViewport(0, 0, w, h);
     }
 
     private void renderUI() {
@@ -235,13 +237,20 @@ public class EditorState {
         ImGui.begin("Toolbar", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
                 ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoBackground);
 
-        if (ImGui.button("Select (Q)")) currentTool = 0; ImGui.sameLine();
-        if (ImGui.button("Move (W)")) currentTool = 1; ImGui.sameLine();
-        if (ImGui.button("Rotate (E)")) currentTool = 2; ImGui.sameLine();
-        if (ImGui.button("Scale (R)")) currentTool = 3; ImGui.sameLine();
-        if (ImGui.button("Undo")) commandHistory.undo(); ImGui.sameLine();
-        if (ImGui.button("Redo")) commandHistory.redo(); ImGui.sameLine();
-        if (ImGui.button("Save")) mapManager.save("my_map"); ImGui.sameLine();
+        if (ImGui.button("Select (Q)")) currentTool = 0;
+        ImGui.sameLine();
+        if (ImGui.button("Move (W)")) currentTool = 1;
+        ImGui.sameLine();
+        if (ImGui.button("Rotate (E)")) currentTool = 2;
+        ImGui.sameLine();
+        if (ImGui.button("Scale (R)")) currentTool = 3;
+        ImGui.sameLine();
+        if (ImGui.button("Undo")) commandHistory.undo();
+        ImGui.sameLine();
+        if (ImGui.button("Redo")) commandHistory.redo();
+        ImGui.sameLine();
+        if (ImGui.button("Save")) mapManager.save("my_map");
+        ImGui.sameLine();
         if (ImGui.button("Load")) mapManager.load("my_map");
         ImGui.sameLine();
         ImGui.text("Objects: " + scene.getModels().size());
@@ -316,8 +325,11 @@ public class EditorState {
 
         float availW = ImGui.getContentRegionAvailX();
         float availH = ImGui.getContentRegionAvailY();
-        ImGui.image(sceneFramebuffer.getTextureId(), availW, availH, 0, 1, 1, 0);
+        if (availW > 0 && availH > 0) {
+            ImGui.image(sceneFramebuffer.getTextureId(), availW, availH, 0, 1, 1, 0);
+        }
 
         ImGui.end();
     }
 }
+// === END OF FILE ===

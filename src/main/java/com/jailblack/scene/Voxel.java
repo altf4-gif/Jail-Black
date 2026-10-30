@@ -5,11 +5,7 @@ public class Voxel {
     public String color;
 
     public Voxel() {}
-
     public Voxel(int x, int y, int z, String color) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.color = color;
+        this.x = x; this.y = y; this.z = z; this.color = color;
     }
 }

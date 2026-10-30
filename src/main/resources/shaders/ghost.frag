@@ -11,8 +11,8 @@ out vec4 fragColor;
 
 void main() {
     vec3 normal = normalize(vNormal);
-    vec3 lightDir = normalize(uLightDir);
-    float diff = max(dot(normal, lightDir), 0.0);
+    float diff = max(dot(normal, normalize(uLightDir)), 0.0);
     vec3 lit = uColor * (0.4 + diff * 0.6);
     fragColor = vec4(lit, uAlpha);
 }
+// === END OF FILE ===

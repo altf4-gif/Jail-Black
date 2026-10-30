@@ -4,9 +4,12 @@ import com.jailblack.engine.*;
 import com.jailblack.editor.EditorState;
 import imgui.ImGui;
 import imgui.ImGuiIO;
+import imgui.flag.ImGuiCond;
+import imgui.flag.ImGuiConfigFlags;
+import imgui.flag.ImGuiDockNodeFlags;
+import imgui.flag.ImGuiWindowFlags;
 import imgui.gl3.ImGuiImplGl3;
 import imgui.glfw.ImGuiImplGlfw;
-import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 import static org.lwjgl.opengl.GL33.*;
@@ -20,7 +23,6 @@ public class Main {
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
-        glEnable(GL_MULTISAMPLE);
 
         ShaderProgram basicShader = ShaderProgram.fromResources("shaders/basic.vert", "shaders/basic.frag");
         ShaderProgram outlineShader = ShaderProgram.fromResources("shaders/outline.vert", "shaders/outline.frag");
@@ -35,15 +37,13 @@ public class Main {
         Mesh cubeOutlineMesh = MeshFactory.cubeOutline();
 
         InstancedRenderer instancedRenderer = new InstancedRenderer(boxMesh, 100_000);
-
         Framebuffer sceneFramebuffer = new Framebuffer(window.getWidth(), window.getHeight());
 
         ImGui.createContext();
         ImGuiIO io = ImGui.getIO();
         io.setIniFilename(null);
         io.getFonts().addFontDefault();
-        io.addConfigFlags(imgui.flag.ImGuiConfigFlags.DockingEnable);
-        io.addConfigFlags(imgui.flag.ImGuiConfigFlags.ViewportsEnable);
+        io.addConfigFlags(ImGuiConfigFlags.DockingEnable);
 
         ImGuiImplGlfw imGuiGlfw = new ImGuiImplGlfw();
         ImGuiImplGl3 imGuiGl3 = new ImGuiImplGl3();
@@ -63,13 +63,6 @@ public class Main {
             }
         });
 
-        GLFW.glfwSetFramebufferSizeCallback(window.getHandle(), (win, w, h) -> {
-            if (w > 0 && h > 0) {
-                sceneFramebuffer.cleanup();
-                editor.setSceneFramebuffer(new Framebuffer(w, h));
-            }
-        });
-
         double lastTime = GLFW.glfwGetTime();
 
         while (!window.shouldClose()) {
@@ -77,21 +70,29 @@ public class Main {
             float dt = (float) (currentTime - lastTime);
             lastTime = currentTime;
 
-            glClearColor(0.1f, 0.1f, 0.1f, 1f);
+            glClearColor(0.12f, 0.12f, 0.14f, 1f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             imGuiGlfw.newFrame();
             ImGui.newFrame();
 
+            ImGui.setNextWindowPos(0, 0, ImGuiCond.Always);
+            ImGui.setNextWindowSize(io.getDisplaySizeX(), io.getDisplaySizeY(), ImGuiCond.Always);
+            ImGui.begin("##MainDockSpaceWindow",
+                    ImGuiWindowFlags.NoTitleBar |
+                    ImGuiWindowFlags.NoCollapse |
+                    ImGuiWindowFlags.NoResize |
+                    ImGuiWindowFlags.NoMove |
+                    ImGuiWindowFlags.NoBringToFrontOnFocus |
+                    ImGuiWindowFlags.NoNavFocus |
+                    ImGuiWindowFlags.NoBackground);
+            ImGui.dockSpace(ImGui.getID("EditorDockSpace"), 0, 0, ImGuiDockNodeFlags.PassthruCentralNode);
+            ImGui.end();
+
             editor.updateAndRender(dt);
 
             ImGui.render();
             imGuiGl3.renderDrawData(ImGui.getDrawData());
-
-            if (io.hasConfigFlags(imgui.flag.ImGuiConfigFlags.ViewportsEnable)) {
-                ImGui.updatePlatformWindows();
-                ImGui.renderPlatformWindowsDefault();
-            }
 
             window.swapAndPoll();
         }
@@ -114,3 +115,4 @@ public class Main {
         window.destroy();
     }
 }
+// === END OF FILE ===
