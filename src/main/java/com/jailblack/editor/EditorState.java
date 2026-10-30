@@ -4,6 +4,7 @@ import com.jailblack.engine.*;
 import com.jailblack.scene.Scene;
 import com.jailblack.scene.Voxel;
 import com.jailblack.scene.VoxelModel;
+import imgui.ImDrawList;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiWindowFlags;
@@ -11,6 +12,7 @@ import imgui.type.ImInt;
 import imgui.type.ImString;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -24,11 +26,18 @@ public class EditorState {
 
     public enum EditorMode { MODEL_EDITOR, MAP_EDITOR }
     public enum EditMode { OBJECT_MODE, EDIT_MODE }
-    public enum Tool { SELECT, ADD_VOXEL, REMOVE_VOXEL, PAINT, EYEDROPPER, FILL }
+    public enum Tool { SELECT, ADD_VOXEL, REMOVE_VOXEL, PAINT, EYEDROPPER, FILL, MOVE, SCALE }
 
     private static final float MAIN_MENU_HEIGHT = 24.0f;
     private static final float TOOLBAR_HEIGHT = 40.0f;
     private static final float TOP_OFFSET = MAIN_MENU_HEIGHT + TOOLBAR_HEIGHT;
+
+    // === GIZMO colors (ReveR-2) ===
+    private static final int COL_X = 0xFF2020FF;
+    private static final int COL_Y = 0xFF20FF20;
+    private static final int COL_Z = 0xFFFF2020;
+    private static final int COL_PLANE = 0x80FFFF00;
+    private static final int COL_FREE = 0xFFFFFFFF;
 
     private final Window window;
     private final Camera camera;
@@ -85,9 +94,37 @@ public class EditorState {
     private final Set<Integer> heldKeys = new HashSet<>();
     private boolean leftClickHandled = false;
 
-    // Подсказки — показываются первые 10 секунд работы
     private float hintTimer = 10.0f;
     private boolean showHints = true;
+
+    // === Viewport image rect (экранные координаты) ===
+    private float vpImageX = 250f;
+    private float vpImageY = 64f;
+    private float vpImageW = 1000f;
+    private float vpImageH = 700f;
+
+    // === GIZMO state ===
+    private boolean viewportHovered = false;
+    private boolean leftMouseDownInViewport = false;
+    private boolean middleMouseDownInViewport = false;
+
+    private final Matrix4f lastViewProjMatrix = new Matrix4f();
+
+    private boolean gizmoValid = false;
+    private float gCX, gCY;
+    private final float[][] gAxisTip = new float[3][2];
+    private final float[][] gNegTip = new float[3][2];
+    private final float[][] gPlaneC = new float[3][2];
+    private float gK = 1f;
+
+    private boolean gizmoMoveDrag = false;
+    private int gizmoMoveMode = 0;
+    private boolean gizmoScaleDrag = false;
+    private int gizmoScaleSlot = -1;
+    private float scaleAccum = 0f;
+    private int scaleSteps = 0;
+    private List<Vector3f> dragStartAll = null;
+    private float pressMX, pressMY;
 
     public EditorState(Window window, Camera camera,
                        ShaderProgram basicShader, ShaderProgram outlineShader,
@@ -110,6 +147,10 @@ public class EditorState {
         this.spawnManager = new SpawnManager(scene, commandHistory, currentColor);
         this.mapManager = new MapManager(scene, commandHistory);
 
+        // дефолтный rect для первого кадра (до вызова renderViewport)
+        vpImageW = Math.max(1, window.getWidth() - 500);
+        vpImageH = Math.max(1, window.getHeight() - (int) TOP_OFFSET - 40);
+
         ModelExportManager.ensureModelsDirectory();
         setupInputCallbacks();
     }
@@ -118,7 +159,7 @@ public class EditorState {
         this.sceneFramebuffer = fb;
     }
 
-    // ================= INPUT =================
+    // ================= INPUT (GLFW, камера + гизмо) =================
 
     private void setupInputCallbacks() {
         GLFW.glfwSetCursorPosCallback(window.getHandle(), (win, xpos, ypos) -> {
@@ -132,10 +173,71 @@ public class EditorState {
             lastMouseX = xpos;
             lastMouseY = ypos;
 
-            if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS) {
+            boolean lmb = GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+            boolean mmb = GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == GLFW.GLFW_PRESS;
+            boolean rmb = GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS;
+
+            if (lmb && leftMouseDownInViewport) {
+                if (gizmoMoveDrag) {
+                    applyMoveDrag(dx, dy);
+                } else if (gizmoScaleDrag) {
+                    scaleAccum += dot2(dx, dy, scaleDirX(), scaleDirY());
+                    scaleSteps = Math.round(scaleAccum);
+                    if (scaleSteps > 32) scaleSteps = 32;
+                    if (scaleSteps < -32) scaleSteps = -32;
+                }
+            } else if (rmb) {
                 camera.rotate(dx, dy);
-            } else if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == GLFW.GLFW_PRESS) {
+            } else if (mmb && middleMouseDownInViewport) {
                 camera.pan(dx, dy);
+            }
+        });
+
+        GLFW.glfwSetMouseButtonCallback(window.getHandle(), (win, button, action, mods) -> {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && action == GLFW.GLFW_PRESS) {
+                leftMouseDownInViewport = viewportHovered;
+                if (leftMouseDownInViewport) {
+                    pressMX = ImGui.getMousePosX();
+                    pressMY = ImGui.getMousePosY();
+                }
+                if (leftMouseDownInViewport && !selectedObjects.isEmpty()
+                        && editMode == EditMode.OBJECT_MODE) {
+                    float mx = ImGui.getMousePosX();
+                    float my = ImGui.getMousePosY();
+                    if (currentTool == Tool.MOVE) {
+                        int mode = pickMoveMode(mx, my);
+                        if (mode != 0) {
+                            gizmoMoveDrag = true;
+                            gizmoMoveMode = mode;
+                            dragStartAll = copyPositions();
+                        }
+                    } else if (currentTool == Tool.SCALE) {
+                        int slot = pickScaleSlot(mx, my);
+                        if (slot >= 0) {
+                            gizmoScaleDrag = true;
+                            gizmoScaleSlot = slot;
+                            scaleAccum = 0f;
+                            scaleSteps = 0;
+                        }
+                    }
+                }
+            }
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && action == GLFW.GLFW_RELEASE) {
+                leftMouseDownInViewport = false;
+                if (gizmoMoveDrag) {
+                    gizmoMoveDrag = false;
+                    pushMoveCommand();
+                }
+                if (gizmoScaleDrag) {
+                    gizmoScaleDrag = false;
+                    applyScaleSteps();
+                }
+            }
+            if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW.GLFW_PRESS) {
+                middleMouseDownInViewport = viewportHovered;
+            }
+            if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW.GLFW_RELEASE) {
+                middleMouseDownInViewport = false;
             }
         });
     }
@@ -166,6 +268,8 @@ public class EditorState {
             if (pressedOnce(GLFW.GLFW_KEY_X)) { currentTool = Tool.REMOVE_VOXEL; editMode = EditMode.EDIT_MODE; }
             if (pressedOnce(GLFW.GLFW_KEY_G)) { currentTool = Tool.PAINT; editMode = EditMode.EDIT_MODE; }
             if (pressedOnce(GLFW.GLFW_KEY_I)) { currentTool = Tool.EYEDROPPER; editMode = EditMode.EDIT_MODE; }
+            if (pressedOnce(GLFW.GLFW_KEY_M)) { currentTool = Tool.MOVE; editMode = EditMode.OBJECT_MODE; }
+            if (pressedOnce(GLFW.GLFW_KEY_R)) { currentTool = Tool.SCALE; editMode = EditMode.OBJECT_MODE; }
 
             if (pressedOnce(GLFW.GLFW_KEY_LEFT_BRACKET)) brushSize[0] = Math.max(1, brushSize[0] - 1);
             if (pressedOnce(GLFW.GLFW_KEY_RIGHT_BRACKET)) brushSize[0] = Math.min(5, brushSize[0] + 1);
@@ -202,20 +306,20 @@ public class EditorState {
         Vector3f right = camera.getRight();
         Vector3f camPos = camera.getPosition();
 
-        boolean shiftKey = GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS;
-        boolean dKey = GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS;
+        boolean ctrlKey = GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS;
+        boolean zKey = GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_Z) == GLFW.GLFW_PRESS;
 
         if (GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_W) == GLFW.GLFW_PRESS)
             camPos.add(new Vector3f(front).mul(vel));
         if (GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_S) == GLFW.GLFW_PRESS)
             camPos.sub(new Vector3f(front).mul(vel));
-        if (dKey && !shiftKey)
+        if (GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS)
             camPos.add(new Vector3f(right).mul(vel));
         if (GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS)
             camPos.sub(new Vector3f(right).mul(vel));
         if (GLFW.glfwGetKey(window.getHandle(), GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS)
             camPos.y += vel;
-        if (shiftKey && !dKey)
+        if (ctrlKey && !zKey)
             camPos.y -= vel;
 
         camera.setPosition(camPos);
@@ -227,7 +331,7 @@ public class EditorState {
         long win = window.getHandle();
 
         if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) {
-            if (!ImGui.getIO().getWantCaptureMouse() || isMouseOverViewport()) {
+            if (!ImGui.getIO().getWantCaptureMouse() || viewportHovered) {
                 if (!leftClickHandled) {
                     handleViewportClick();
                     leftClickHandled = true;
@@ -236,27 +340,54 @@ public class EditorState {
         } else {
             leftClickHandled = false;
         }
-
-        if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS
-                && isMouseOverViewport()
-                && !ImGui.getIO().getWantCaptureMouse()
-                && showGhost) {
-            // RMB-удаление доступно только в edit-режиме и когда есть цель
-            // (камера вращается через cursor callback, здесь не мешаем)
-        }
     }
 
     private boolean isMouseOverViewport() {
+        if (vpImageW <= 0f || vpImageH <= 0f) return false;
+
         double[] mx = new double[1];
         double[] my = new double[1];
         GLFW.glfwGetCursorPos(window.getHandle(), mx, my);
 
-        int vpX = 250;
-        int vpY = (int) TOP_OFFSET;
-        int vpW = window.getWidth() - 500;
-        int vpH = window.getHeight() - (int) TOP_OFFSET - 40;
+        return mx[0] >= vpImageX && mx[0] <= vpImageX + vpImageW
+                && my[0] >= vpImageY && my[0] <= vpImageY + vpImageH;
+    }
 
-        return mx[0] >= vpX && mx[0] <= vpX + vpW && my[0] >= vpY && my[0] <= vpY + vpH;
+    // ================= MOUSE RAY =================
+
+    /**
+     * Строит луч из позиции мыши на экране: unproject через инверсную viewProj.
+     * Пишет нормированное направление в outDirection. Возвращает false, если
+     * обратная матрица вырождена или размеры viewport нулевые.
+     */
+    private boolean getMouseRay(double mouseX, double mouseY, Vector3f outDirection) {
+        if (vpImageW <= 0f || vpImageH <= 0f) return false;
+
+        float ndcX = (float) ((mouseX - vpImageX) / vpImageW * 2.0 - 1.0);
+        float ndcY = (float) (1.0 - (mouseY - vpImageY) / vpImageH * 2.0);
+
+        Matrix4f viewProj = camera.getViewProjection(vpImageW / vpImageH);
+        Matrix4f invViewProj = new Matrix4f();
+        try {
+            viewProj.invert(invViewProj);
+        } catch (Exception e) {
+            return false;
+        }
+
+        Vector4f nearPoint = new Vector4f(ndcX, ndcY, -1.0f, 1.0f).mul(invViewProj);
+        if (Math.abs(nearPoint.w) < 1e-7f) return false;
+        nearPoint.div(nearPoint.w);
+
+        Vector4f farPoint = new Vector4f(ndcX, ndcY, 1.0f, 1.0f).mul(invViewProj);
+        if (Math.abs(farPoint.w) < 1e-7f) return false;
+        farPoint.div(farPoint.w);
+
+        outDirection.set(
+                farPoint.x - nearPoint.x,
+                farPoint.y - nearPoint.y,
+                farPoint.z - nearPoint.z).normalize();
+
+        return true;
     }
 
     // ================= GHOST + DDA =================
@@ -271,19 +402,25 @@ public class EditorState {
         hoveredModel = selectedObjects.get(0);
         if (hoveredModel == null) return;
 
+        if (!isMouseOverViewport()) return;
+
+        double[] mx = new double[1];
+        double[] my = new double[1];
+        GLFW.glfwGetCursorPos(window.getHandle(), mx, my);
+
+        Vector3f rayDir = new Vector3f();
+        if (!getMouseRay(mx[0], my[0], rayDir)) return;
+
         Vector3f camPos = camera.getPosition();
-        Vector3f camDir = camera.getFront();
-
         Vector3f modelPos = hoveredModel.transform.position;
-        Vector3f localPos = new Vector3f(camPos).sub(modelPos);
+        Vector3f localRayOrigin = new Vector3f(camPos).sub(modelPos);
 
-        // Проверка: находится ли камера внутри объёма модели
         cursorInsideModel =
                 camPos.x >= modelPos.x && camPos.x < modelPos.x + hoveredModel.sizeX &&
                 camPos.y >= modelPos.y && camPos.y < modelPos.y + hoveredModel.sizeY &&
                 camPos.z >= modelPos.z && camPos.z < modelPos.z + hoveredModel.sizeZ;
 
-        int[] hit = ddaRaycast(localPos, camDir,
+        int[] hit = ddaRaycast(localRayOrigin, rayDir,
                 hoveredModel.sizeX, hoveredModel.sizeY, hoveredModel.sizeZ,
                 hoveredModel);
 
@@ -294,16 +431,24 @@ public class EditorState {
 
             if (currentTool == Tool.ADD_VOXEL) {
                 ghostPosition.set(hit[0] + hit[3], hit[1] + hit[4], hit[2] + hit[5]);
-                ghostPosition.x = Math.max(0, Math.min(hoveredModel.sizeX - 1, ghostPosition.x));
-                ghostPosition.y = Math.max(0, Math.min(hoveredModel.sizeY - 1, ghostPosition.y));
-                ghostPosition.z = Math.max(0, Math.min(hoveredModel.sizeZ - 1, ghostPosition.z));
             } else {
                 ghostPosition.set(hit[0], hit[1], hit[2]);
             }
 
+            boolean outside = ghostPosition.x < 0 || ghostPosition.x >= hoveredModel.sizeX
+                    || ghostPosition.y < 0 || ghostPosition.y >= hoveredModel.sizeY
+                    || ghostPosition.z < 0 || ghostPosition.z >= hoveredModel.sizeZ;
+
             showGhost = true;
-            statusMessage = "Target: [" + (int) ghostPosition.x + ", "
-                    + (int) ghostPosition.y + ", " + (int) ghostPosition.z + "]";
+
+            if (outside && currentTool == Tool.ADD_VOXEL) {
+                statusMessage = "Click to expand bounds to ["
+                        + (int) ghostPosition.x + ", " + (int) ghostPosition.y + ", "
+                        + (int) ghostPosition.z + "]";
+            } else {
+                statusMessage = "Target: [" + (int) ghostPosition.x + ", "
+                        + (int) ghostPosition.y + ", " + (int) ghostPosition.z + "]";
+            }
         }
     }
 
@@ -348,8 +493,18 @@ public class EditorState {
             stepZ = 0; tDeltaZ = Float.MAX_VALUE; tMaxZ = Float.MAX_VALUE;
         }
 
-        int nx = 0, ny = 1, nz = 0;
+        int nx = 0, ny = 0, nz = 0;
+        float adx = Math.abs(dir.x), ady = Math.abs(dir.y), adz = Math.abs(dir.z);
+        if (adx >= ady && adx >= adz) {
+            nx = dir.x > 0 ? -1 : 1;
+        } else if (ady >= adz) {
+            ny = dir.y > 0 ? -1 : 1;
+        } else {
+            nz = dir.z > 0 ? -1 : 1;
+        }
+
         int[] firstEntry = null;
+        boolean wasInside = false;
 
         for (int step = 0; step < 1024; step++) {
             boolean inside =
@@ -357,13 +512,13 @@ public class EditorState {
                     voxelY >= 0 && voxelY < sizeY &&
                     voxelZ >= 0 && voxelZ < sizeZ;
 
-            if (inside) {
-                if (firstEntry == null) {
-                    firstEntry = new int[]{voxelX, voxelY, voxelZ, nx, ny, nz};
-                }
-                if (model != null && model.getVoxelAt(voxelX, voxelY, voxelZ) != null) {
-                    return new int[]{voxelX, voxelY, voxelZ, nx, ny, nz};
-                }
+            if (inside && !wasInside && firstEntry == null) {
+                firstEntry = new int[]{voxelX, voxelY, voxelZ, nx, ny, nz};
+            }
+            wasInside = inside;
+
+            if (inside && model != null && model.getVoxelAt(voxelX, voxelY, voxelZ) != null) {
+                return new int[]{voxelX, voxelY, voxelZ, nx, ny, nz};
             }
 
             if (tMaxX < tMaxY) {
@@ -416,7 +571,7 @@ public class EditorState {
 
     private void handleVoxelEdit() {
         if (!showGhost || hoveredModel == null) {
-            statusMessage = "No valid target — move cursor over the model";
+            statusMessage = "No valid target - move cursor over the model";
             return;
         }
 
@@ -428,6 +583,15 @@ public class EditorState {
             int z = (int) ghostPosition.z;
 
             List<Voxel> oldVoxels = copyVoxels(hoveredModel);
+
+            // расширяем границы так, чтобы вся кисть влезла (включая отрицательные координаты)
+            hoveredModel.expandToInclude(
+                    Math.min(x, x + bs - 1),
+                    Math.min(y, y + bs - 1),
+                    Math.min(z, z + bs - 1),
+                    Math.max(x, x + bs - 1),
+                    Math.max(y, y + bs - 1),
+                    Math.max(z, z + bs - 1));
 
             for (int dx = 0; dx < bs; dx++) {
                 for (int dy = 0; dy < bs; dy++) {
@@ -501,6 +665,229 @@ public class EditorState {
         statusMessage = msg;
     }
 
+    // ================= GIZMO =================
+
+    private boolean worldToScreen(Vector3f world, float[] out) {
+        Vector4f p = new Vector4f(world, 1.0f).mul(lastViewProjMatrix);
+        if (p.w <= 0) return false;
+        float nx = p.x / p.w;
+        float ny = p.y / p.w;
+        out[0] = (nx * 0.5f + 0.5f) * viewportW;
+        out[1] = (1f - (ny * 0.5f + 0.5f)) * viewportH;
+        return true;
+    }
+
+    private void drawGizmo(float imgX, float imgY) {
+        gizmoValid = false;
+        if (selectedObjects.isEmpty()) return;
+        if (currentTool != Tool.MOVE && currentTool != Tool.SCALE) return;
+
+        VoxelModel target = selectedObjects.get(0);
+        Vector3f origin = new Vector3f(target.transform.position);
+
+        float[] c = new float[2];
+        if (!worldToScreen(origin, c)) return;
+
+        float dist = camera.getPosition().distance(origin);
+        gK = (float) (2.0 * dist * Math.tan(Math.toRadians(30.0)) / Math.max(viewportH, 1));
+
+        ImDrawList dl = ImGui.getWindowDrawList();
+
+        float cx = imgX + c[0];
+        float cy = imgY + c[1];
+        gCX = cx; gCY = cy;
+
+        Vector3f[] axes = {new Vector3f(1, 0, 0), new Vector3f(0, 1, 0), new Vector3f(0, 0, 1)};
+        int[] cols = {COL_X, COL_Y, COL_Z};
+
+        for (int a = 0; a < 3; a++) {
+            float[] t = new float[2];
+            float[] tn = new float[2];
+            Vector3f wp = new Vector3f(origin).add(new Vector3f(axes[a]).mul(1.6f));
+            Vector3f wn = new Vector3f(origin).add(new Vector3f(axes[a]).mul(-1.6f));
+            if (!worldToScreen(wp, t)) { t[0] = c[0]; t[1] = c[1]; }
+            if (!worldToScreen(wn, tn)) { tn[0] = c[0]; tn[1] = c[1]; }
+            gAxisTip[a][0] = imgX + t[0]; gAxisTip[a][1] = imgY + t[1];
+            gNegTip[a][0] = imgX + tn[0]; gNegTip[a][1] = imgY + tn[1];
+
+            dl.addLine(cx, cy, gAxisTip[a][0], gAxisTip[a][1], cols[a], 2.5f);
+            dl.addCircleFilled(gAxisTip[a][0], gAxisTip[a][1], 5f, cols[a]);
+
+            if (currentTool == Tool.SCALE) {
+                dl.addLine(cx, cy, gNegTip[a][0], gNegTip[a][1], cols[a], 2.5f);
+                dl.addCircleFilled(gNegTip[a][0], gNegTip[a][1], 5f, cols[a]);
+            }
+        }
+
+        if (currentTool == Tool.MOVE) {
+            int[][] pairs = {{0, 1}, {0, 2}, {1, 2}};
+            for (int p = 0; p < 3; p++) {
+                Vector3f pw = new Vector3f(origin)
+                        .add(new Vector3f(axes[pairs[p][0]]).mul(0.5f))
+                        .add(new Vector3f(axes[pairs[p][1]]).mul(0.5f));
+                float[] pc = new float[2];
+                if (worldToScreen(pw, pc)) {
+                    gPlaneC[p][0] = imgX + pc[0];
+                    gPlaneC[p][1] = imgY + pc[1];
+                    dl.addRectFilled(gPlaneC[p][0] - 6, gPlaneC[p][1] - 6,
+                            gPlaneC[p][0] + 6, gPlaneC[p][1] + 6, COL_PLANE);
+                }
+            }
+            dl.addCircleFilled(cx, cy, 7f, COL_FREE);
+        }
+
+        if (gizmoScaleDrag) {
+            dl.addText(cx + 14, cy - 14, COL_FREE, "Steps: " + scaleSteps);
+        }
+
+        gizmoValid = true;
+    }
+
+    private float dot2(float ax, float ay, float bx, float by) { return ax * bx + ay * by; }
+
+    private float scaleDirX() {
+        int axis = gizmoScaleSlot / 2;
+        float sign = (gizmoScaleSlot % 2 == 0) ? 1f : -1f;
+        float dx = gAxisTip[axis][0] - gCX;
+        float dy = gAxisTip[axis][1] - gCY;
+        if (sign < 0) { dx = -dx; dy = -dy; }
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len < 1e-4f) return 0f;
+        return dx / len;
+    }
+
+    private float scaleDirY() {
+        int axis = gizmoScaleSlot / 2;
+        float sign = (gizmoScaleSlot % 2 == 0) ? 1f : -1f;
+        float dx = gAxisTip[axis][0] - gCX;
+        float dy = gAxisTip[axis][1] - gCY;
+        if (sign < 0) { dx = -dx; dy = -dy; }
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len < 1e-4f) return 0f;
+        return dy / len;
+    }
+
+    private float distToSeg(float px, float py, float ax, float ay, float bx, float by) {
+        float vx = bx - ax, vy = by - ay;
+        float wx = px - ax, wy = py - ay;
+        float ll = vx * vx + vy * vy;
+        float t = ll > 0 ? Math.max(0, Math.min(1, (wx * vx + wy * vy) / ll)) : 0f;
+        float dx = px - (ax + t * vx);
+        float dy = py - (ay + t * vy);
+        return (float) Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private int pickMoveMode(float mx, float my) {
+        if (!gizmoValid) return 0;
+        for (int p = 0; p < 3; p++) {
+            float dx = mx - gPlaneC[p][0], dy = my - gPlaneC[p][1];
+            if (dx * dx + dy * dy < 100) return 4 + p;
+        }
+        for (int a = 0; a < 3; a++) {
+            if (distToSeg(mx, my, gCX, gCY, gAxisTip[a][0], gAxisTip[a][1]) < 7) return 1 + a;
+        }
+        float dcx = mx - gCX, dcy = my - gCY;
+        if (dcx * dcx + dcy * dcy < 81) return 7;
+        return 0;
+    }
+
+    private int pickScaleSlot(float mx, float my) {
+        if (!gizmoValid) return -1;
+        for (int a = 0; a < 3; a++) {
+            float dx = mx - gAxisTip[a][0], dy = my - gAxisTip[a][1];
+            if (dx * dx + dy * dy < 81) return a * 2;
+            dx = mx - gNegTip[a][0]; dy = my - gNegTip[a][1];
+            if (dx * dx + dy * dy < 81) return a * 2 + 1;
+        }
+        return -1;
+    }
+
+    private List<Vector3f> copyPositions() {
+        List<Vector3f> out = new ArrayList<>();
+        for (VoxelModel m : selectedObjects) out.add(new Vector3f(m.transform.position));
+        return out;
+    }
+
+    private void applyMoveDrag(float dx, float dy) {
+        if (dragStartAll == null || selectedObjects.isEmpty()) return;
+        Vector3f base = dragStartAll.get(0);
+
+        if (gizmoMoveMode >= 1 && gizmoMoveMode <= 3) {
+            int a = gizmoMoveMode - 1;
+            Vector3f axis = new Vector3f();
+            if (a == 0) axis.set(1, 0, 0);
+            else if (a == 1) axis.set(0, 1, 0);
+            else axis.set(0, 0, 1);
+            float[] sx = new float[2], sy = new float[2];
+            Vector3f wp = new Vector3f(base).add(axis);
+            worldToScreen(wp, sx);
+            worldToScreen(base, sy);
+            float world = dot2(dx, dy, sx[0] - sy[0], sx[1] - sy[1]) * gK;
+            Vector3f delta = new Vector3f(axis).mul(world);
+            for (int i = 0; i < selectedObjects.size(); i++) {
+                selectedObjects.get(i).transform.position.set(dragStartAll.get(i)).add(delta);
+                selectedObjects.get(i).markAABBDirty();
+            }
+        } else if (gizmoMoveMode >= 4 && gizmoMoveMode <= 6) {
+            int u = (gizmoMoveMode == 4) ? 0 : (gizmoMoveMode == 5 ? 0 : 1);
+            int v = (gizmoMoveMode == 4) ? 1 : (gizmoMoveMode == 5 ? 2 : 2);
+            Vector3f axisU = new Vector3f(), axisV = new Vector3f();
+            if (u == 0) axisU.set(1, 0, 0); else if (u == 1) axisU.set(0, 1, 0); else axisU.set(0, 0, 1);
+            if (v == 0) axisV.set(1, 0, 0); else if (v == 1) axisV.set(0, 1, 0); else axisV.set(0, 0, 1);
+            float mx = dx * gK;
+            float my = dy * gK;
+            Vector3f delta = new Vector3f(axisU).mul(mx).add(new Vector3f(axisV).mul(my));
+            for (int i = 0; i < selectedObjects.size(); i++) {
+                selectedObjects.get(i).transform.position.set(dragStartAll.get(i)).add(delta);
+                selectedObjects.get(i).markAABBDirty();
+            }
+        } else if (gizmoMoveMode == 7) {
+            float wx = dx * gK;
+            float wy = dy * gK;
+            Vector3f right = camera.getRight();
+            Vector3f up = camera.getUp();
+            Vector3f delta = new Vector3f(right).mul(wx).add(new Vector3f(up).mul(wy));
+            for (int i = 0; i < selectedObjects.size(); i++) {
+                selectedObjects.get(i).transform.position.set(dragStartAll.get(i)).add(delta);
+                selectedObjects.get(i).markAABBDirty();
+            }
+        }
+    }
+
+    private void pushMoveCommand() {
+        if (dragStartAll == null || selectedObjects.isEmpty()) return;
+        Vector3f[] oldP = new Vector3f[selectedObjects.size()];
+        Vector3f[] newP = new Vector3f[selectedObjects.size()];
+        for (int i = 0; i < selectedObjects.size(); i++) {
+            oldP[i] = dragStartAll.get(i);
+            newP[i] = new Vector3f(selectedObjects.get(i).transform.position);
+        }
+        commandHistory.execute(new Commands.MoveCommand(selectedObjects, oldP, newP));
+        dragStartAll = null;
+    }
+
+    private void applyScaleSteps() {
+        if (scaleSteps == 0 || selectedObjects.isEmpty() || gizmoScaleSlot < 0) return;
+        int axis = gizmoScaleSlot / 2;
+        VoxelModel m = selectedObjects.get(0);
+        List<Voxel> oldVoxels = copyVoxels(m);
+
+        float factor = 1.0f + scaleSteps * 0.1f;
+        if (factor < 0.1f) factor = 0.1f;
+
+        for (Voxel v : m.voxels) {
+            if (axis == 0) v.x = Math.round(v.x * factor);
+            else if (axis == 1) v.y = Math.round(v.y * factor);
+            else v.z = Math.round(v.z * factor);
+        }
+        m.markAABBDirty();
+
+        List<Voxel> newVoxels = copyVoxels(m);
+        commandHistory.execute(new Commands.VoxelEditCommand(m, oldVoxels, newVoxels));
+
+        gizmoScaleSlot = -1;
+    }
+
     // ================= SCENE =================
 
     private void renderScene() {
@@ -518,6 +905,7 @@ public class EditorState {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         Matrix4f viewProj = camera.getViewProjection((float) w / (float) h);
+        lastViewProjMatrix.set(viewProj);
 
         gridShader.use();
         gridShader.setUniform("uViewProj", viewProj);
@@ -538,7 +926,7 @@ public class EditorState {
 
         glDisable(GL_BLEND);
 
-        // Призрак-воксель + подсветка ячейки
+        // ghost + wireframe (мировые координаты — modelPos + ghostPosition)
         if (showGhost && editMode == EditMode.EDIT_MODE && hoveredModel != null) {
             Vector3f modelPos = hoveredModel.transform.position;
             float gx = modelPos.x + ghostPosition.x;
@@ -554,7 +942,6 @@ public class EditorState {
             ghostShader.setUniform("uModel", ghostMatrix);
             boxMesh.draw();
 
-            // Wireframe вокруг призрака — чтобы ячейка была видна всегда
             outlineShader.use();
             outlineShader.setUniform("uViewProj", viewProj);
             outlineShader.setUniform("uColor", new Vector3f(0.2f, 1.0f, 1.0f));
@@ -563,16 +950,15 @@ public class EditorState {
             cubeOutlineMesh.draw();
         }
 
-        // Границы модели: красная если камера снаружи, зелёная если внутри
         if (editMode == EditMode.EDIT_MODE && !selectedObjects.isEmpty()) {
             VoxelModel model = selectedObjects.get(0);
             outlineShader.use();
             outlineShader.setUniform("uViewProj", viewProj);
 
             if (cursorInsideModel) {
-                outlineShader.setUniform("uColor", new Vector3f(0.2f, 1.0f, 0.2f)); // green
+                outlineShader.setUniform("uColor", new Vector3f(0.2f, 1.0f, 0.2f));
             } else {
-                outlineShader.setUniform("uColor", new Vector3f(1.0f, 0.25f, 0.25f)); // red
+                outlineShader.setUniform("uColor", new Vector3f(1.0f, 0.25f, 0.25f));
             }
 
             Matrix4f boundsMatrix = new Matrix4f()
@@ -585,7 +971,6 @@ public class EditorState {
             cubeOutlineMesh.draw();
         }
 
-        // Контур выделенных вокселей
         if (!selectedObjects.isEmpty()) {
             outlineShader.use();
             outlineShader.setUniform("uViewProj", viewProj);
@@ -648,6 +1033,10 @@ public class EditorState {
         if (ImGui.button("Paint (G)")) { currentTool = Tool.PAINT; editMode = EditMode.EDIT_MODE; }
         ImGui.sameLine();
         if (ImGui.button("Pick (I)")) { currentTool = Tool.EYEDROPPER; editMode = EditMode.EDIT_MODE; }
+        ImGui.sameLine();
+        if (ImGui.button("Move (M)")) { currentTool = Tool.MOVE; editMode = EditMode.OBJECT_MODE; }
+        ImGui.sameLine();
+        if (ImGui.button("Scale (R)")) { currentTool = Tool.SCALE; editMode = EditMode.OBJECT_MODE; }
         ImGui.sameLine();
 
         ImGui.text("|");
@@ -858,6 +1247,22 @@ public class EditorState {
             ImGui.image(sceneFramebuffer.getTextureId(), availW, availH, 0, 1, 1, 0);
             viewportW = (int) availW;
             viewportH = (int) availH;
+
+            vpImageX = ImGui.getItemRectMinX();
+            vpImageY = ImGui.getItemRectMinY();
+            vpImageW = availW;
+            vpImageH = availH;
+
+            viewportHovered = ImGui.isWindowHovered();
+
+            if (viewportHovered && editMode == EditMode.OBJECT_MODE) {
+                drawGizmo(vpImageX, vpImageY);
+            } else {
+                gizmoValid = false;
+            }
+        } else {
+            viewportHovered = false;
+            gizmoValid = false;
         }
 
         ImGui.end();
@@ -912,12 +1317,11 @@ public class EditorState {
         ImGui.end();
     }
 
-    /** Оверлей с подсказками управления, показывается первые ~10 секунд. */
     private void renderHintsOverlay() {
         if (!showHints) return;
 
         ImGui.setNextWindowPos(260, TOP_OFFSET + 8, ImGuiCond.Always);
-        ImGui.setNextWindowSize(420, 190, ImGuiCond.Always);
+        ImGui.setNextWindowSize(420, 210, ImGuiCond.Always);
         ImGui.begin("##HintsOverlay",
                 ImGuiWindowFlags.NoTitleBar |
                 ImGuiWindowFlags.NoResize |
@@ -931,18 +1335,20 @@ public class EditorState {
         ImGui.separator();
 
         if (editMode == EditMode.EDIT_MODE) {
-            ImGui.bulletText("LMB — place / paint / remove voxel");
-            ImGui.bulletText("B — add, X — remove, G — paint, I — pick color");
+            ImGui.bulletText("LMB - place / paint / remove voxel");
+            ImGui.bulletText("B - add, X - remove, G - paint, I - pick color");
+            ImGui.bulletText("Aim at the bounding box; bounds auto-expand");
         } else {
-            ImGui.bulletText("LMB — select object");
-            ImGui.bulletText("Shift + LMB — multi-select");
+            ImGui.bulletText("LMB - select object");
+            ImGui.bulletText("Shift + LMB - multi-select");
+            ImGui.bulletText("M - Move gizmo, R - Scale gizmo");
         }
 
-        ImGui.bulletText("RMB + Move — rotate camera");
-        ImGui.bulletText("MMB + Move — pan camera");
-        ImGui.bulletText("Scroll — zoom");
-        ImGui.bulletText("WASD / Space / Shift — fly camera");
-        ImGui.bulletText("F — focus selected model");
+        ImGui.bulletText("RMB + Move - rotate camera");
+        ImGui.bulletText("MMB + Move - pan camera");
+        ImGui.bulletText("Scroll - zoom");
+        ImGui.bulletText("WASD / Space / LCtrl - fly camera");
+        ImGui.bulletText("F - focus selected model");
 
         ImGui.end();
     }
@@ -1009,6 +1415,7 @@ public class EditorState {
                     selectedObjects.add(newModel);
                     editMode = EditMode.EDIT_MODE;
                     currentTool = Tool.ADD_VOXEL;
+                    focusOnModel(newModel);
                     statusMessage = "Created model: " + newModelName.get();
                     showHints = true;
                     hintTimer = 10.0f;
@@ -1034,9 +1441,23 @@ public class EditorState {
         if (action == EditorUiState.UiAction.CREATE_MODEL_WORKSPACE) {
             scene.getModels().clear();
             selectedObjects.clear();
+
+            VoxelModel m = spawnManager.createNewModel(
+                    editorUi.getActiveModelName(),
+                    editorUi.getActiveModelWidth(),
+                    editorUi.getActiveModelHeight(),
+                    editorUi.getActiveModelDepth());
+
+            if (m != null) {
+                selectedObjects.add(m);
+                focusOnModel(m);
+                statusMessage = "Created model: " + editorUi.getActiveModelName();
+            } else {
+                statusMessage = "Failed to create model";
+            }
+
             currentTool = Tool.ADD_VOXEL;
             editMode = EditMode.EDIT_MODE;
-            statusMessage = "New model workspace: " + editorUi.getActiveModelName();
             showHints = true;
             hintTimer = 10.0f;
             return;
@@ -1047,6 +1468,23 @@ public class EditorState {
             currentTool = Tool.SELECT;
             statusMessage = "Map workspace";
         }
+    }
+
+    private void focusOnModel(VoxelModel m) {
+        Vector3f center = new Vector3f(
+                m.transform.position.x + m.sizeX / 2f,
+                m.transform.position.y + m.sizeY / 2f,
+                m.transform.position.z + m.sizeZ / 2f);
+
+        float maxDim = Math.max(m.sizeX, Math.max(m.sizeY, m.sizeZ));
+        float dist = maxDim * 2.2f + 6.0f;
+
+        camera.setPosition(new Vector3f(
+                center.x + dist,
+                center.y + dist * 0.7f,
+                center.z + dist));
+        camera.setYaw(-135f);
+        camera.setPitch(-25f);
     }
 
     private int countSceneVoxels() {

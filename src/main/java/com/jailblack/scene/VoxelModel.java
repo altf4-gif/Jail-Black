@@ -97,6 +97,55 @@ public class VoxelModel {
         aabbDirty = false;
     }
 
+    /**
+     * Расширяет границы модели так, чтобы включить указанную точку.
+     * Если координата отрицательная, все существующие воксели сдвигаются
+     * в положительную сторону, а transform.position компенсируется, чтобы
+     * модель осталась на том же месте в мире.
+     */
+    public void expandToInclude(int x, int y, int z) {
+        expandToInclude(x, y, z, x, y, z);
+    }
+
+    /**
+     * Расширяет границы модели так, чтобы включить весь диапазон [min..max]
+     * по каждой оси.
+     */
+    public void expandToInclude(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax) {
+        int shiftX = xMin < 0 ? -xMin : 0;
+        int shiftY = yMin < 0 ? -yMin : 0;
+        int shiftZ = zMin < 0 ? -zMin : 0;
+
+        if (shiftX > 0 || shiftY > 0 || shiftZ > 0) {
+            if (voxels != null) {
+                for (Voxel v : voxels) {
+                    v.x += shiftX;
+                    v.y += shiftY;
+                    v.z += shiftZ;
+                }
+            }
+            transform.position.x -= shiftX;
+            transform.position.y -= shiftY;
+            transform.position.z -= shiftZ;
+
+            sizeX += shiftX;
+            sizeY += shiftY;
+            sizeZ += shiftZ;
+        }
+
+        int newSizeX = Math.max(sizeX, xMax + shiftX + 1);
+        int newSizeY = Math.max(sizeY, yMax + shiftY + 1);
+        int newSizeZ = Math.max(sizeZ, zMax + shiftZ + 1);
+
+        if (newSizeX != sizeX || newSizeY != sizeY || newSizeZ != sizeZ) {
+            sizeX = newSizeX;
+            sizeY = newSizeY;
+            sizeZ = newSizeZ;
+        }
+
+        markAABBDirty();
+    }
+
     public Voxel getVoxelAt(int x, int y, int z) {
         if (voxels == null) return null;
         for (Voxel voxel : voxels) {
