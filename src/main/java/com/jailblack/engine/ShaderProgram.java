@@ -73,6 +73,10 @@ public class ShaderProgram {
         glUniform1f(getUniformLocation(name), value);
     }
 
+    public void setUniform(String name, boolean value) {
+        glUniform1i(getUniformLocation(name), value ? 1 : 0);
+    }
+
     public void setUniform(String name, Vector3f value) {
         glUniform3f(getUniformLocation(name), value.x, value.y, value.z);
     }

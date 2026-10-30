@@ -48,7 +48,8 @@ public class Camera {
         Vector3f right = new Vector3f(front).cross(up).normalize();
         Vector3f camUp = new Vector3f(right).cross(front).normalize();
 
-        Vector3f delta = new Vector3f(right).mul(-deltaX * sensitivity).add(new Vector3f(camUp).mul(deltaY * sensitivity));
+        Vector3f delta = new Vector3f(right).mul(-deltaX * sensitivity)
+                .add(new Vector3f(camUp).mul(deltaY * sensitivity));
 
         position.add(delta);
         orbitTarget.add(delta);
@@ -91,4 +92,35 @@ public class Camera {
     }
 
     public Vector3f getRight() {
-        return new
+        return new Vector3f(getFront()).cross(up).normalize();
+    }
+
+    public Vector3f getUp() {
+        return new Vector3f(getRight()).cross(getFront()).normalize();
+    }
+
+    public Vector3f getPosition() {
+        return new Vector3f(position);
+    }
+
+    public void setPosition(Vector3f pos) {
+        position.set(pos);
+    }
+
+    public Matrix4f getViewMatrix() {
+        return new Matrix4f().lookAt(position, new Vector3f(position).add(getFront()), up);
+    }
+
+    public Matrix4f getProjectionMatrix(float aspect) {
+        return new Matrix4f().perspective((float) Math.toRadians(60.0f), aspect, 0.1f, 1000.0f);
+    }
+
+    public Matrix4f getViewProjection(float aspect) {
+        return new Matrix4f(getProjectionMatrix(aspect)).mul(getViewMatrix());
+    }
+
+    public float getYaw() { return yaw; }
+    public float getPitch() { return pitch; }
+    public void setYaw(float yaw) { this.yaw = yaw; }
+    public void setPitch(float pitch) { this.pitch = pitch; }
+}
