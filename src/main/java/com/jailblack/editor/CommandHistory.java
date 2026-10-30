@@ -30,16 +30,10 @@ public class CommandHistory {
         }
     }
 
-    public boolean canUndo() {
-        return currentIndex >= 0;
-    }
+    public boolean canUndo() { return currentIndex >= 0; }
+    public boolean canRedo() { return currentIndex < history.size() - 1; }
 
-    public boolean canRedo() {
-        return currentIndex < history.size() - 1;
-    }
-
-    public void clear() {
-        history.clear();
-        currentIndex = -1;
-    }
+    public void clear() { history.clear(); currentIndex = -1; }
+    public int getHistorySize() { return history.size(); }
+    public int getCurrentIndex() { return currentIndex; }
 }

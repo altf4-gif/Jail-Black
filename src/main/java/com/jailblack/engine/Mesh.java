@@ -1,23 +1,16 @@
 package com.jailblack.engine;
 
 import org.lwjgl.system.MemoryUtil;
-
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 import static org.lwjgl.opengl.GL33.*;
 
 public class Mesh {
-    private final int vaoId;
-    private final int vboId;
-    private final int eboId;
-    private final int indexCount;
-    private final int vertexCount;
-    private final int drawMode;
+    private final int vaoId, vboId, eboId;
+    private final int indexCount, vertexCount, drawMode;
 
-    public Mesh(float[] vertices, int[] indices) {
-        this(vertices, indices, GL_TRIANGLES);
-    }
+    public Mesh(float[] vertices, int[] indices) { this(vertices, indices, GL_TRIANGLES); }
 
     public Mesh(float[] vertices, int[] indices, int drawMode) {
         this.vertexCount = vertices.length / 8;
@@ -48,17 +41,11 @@ public class Mesh {
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(2, 2, GL_FLOAT, false, stride, 6L * Float.BYTES);
         glEnableVertexAttribArray(2);
-
         glBindVertexArray(0);
     }
 
-    public void bind() {
-        glBindVertexArray(vaoId);
-    }
-
-    public void unbind() {
-        glBindVertexArray(0);
-    }
+    public void bind() { glBindVertexArray(vaoId); }
+    public void unbind() { glBindVertexArray(0); }
 
     public void draw() {
         glBindVertexArray(vaoId);
@@ -66,25 +53,11 @@ public class Mesh {
         glBindVertexArray(0);
     }
 
-    public int getVaoId() {
-        return vaoId;
-    }
-
-    public int getVboId() {
-        return vboId;
-    }
-
-    public int getEboId() {
-        return eboId;
-    }
-
-    public int getIndexCount() {
-        return indexCount;
-    }
-
-    public int getVertexCount() {
-        return vertexCount;
-    }
+    public int getVaoId() { return vaoId; }
+    public int getVboId() { return vboId; }
+    public int getEboId() { return eboId; }
+    public int getIndexCount() { return indexCount; }
+    public int getVertexCount() { return vertexCount; }
 
     public void cleanup() {
         glDeleteBuffers(vboId);
@@ -92,4 +65,3 @@ public class Mesh {
         glDeleteVertexArrays(vaoId);
     }
 }
-// === END OF FILE ===

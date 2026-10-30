@@ -1,6 +1,8 @@
 package com.jailblack.engine;
 
-import org.joml.*;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -13,16 +15,17 @@ public class ShaderProgram {
     public ShaderProgram(String vertSrc, String fragSrc) {
         int vertId = compileShader(vertSrc, GL_VERTEX_SHADER);
         int fragId = compileShader(fragSrc, GL_FRAGMENT_SHADER);
-
         programId = glCreateProgram();
         glAttachShader(programId, vertId);
         glAttachShader(programId, fragId);
         glLinkProgram(programId);
-
         if (glGetProgrami(programId, GL_LINK_STATUS) == GL_FALSE) {
-            throw new RuntimeException("Error linking shader: " + glGetProgramInfoLog(programId));
+            String log = glGetProgramInfoLog(programId);
+            glDeleteProgram(programId);
+            glDeleteShader(vertId);
+            glDeleteShader(fragId);
+            throw new RuntimeException("Error linking shader: " + log);
         }
-
         glDetachShader(programId, vertId);
         glDetachShader(programId, fragId);
         glDeleteShader(vertId);
@@ -33,7 +36,6 @@ public class ShaderProgram {
         int id = glCreateShader(type);
         glShaderSource(id, src);
         glCompileShader(id);
-
         if (glGetShaderi(id, GL_COMPILE_STATUS) == GL_FALSE) {
             String log = glGetShaderInfoLog(id);
             glDeleteShader(id);
@@ -60,9 +62,7 @@ public class ShaderProgram {
     }
 
     public void use() { glUseProgram(programId); }
-
     public int getUniformLocation(String name) { return glGetUniformLocation(programId, name); }
-
     public void setUniform(String name, int value) { glUniform1i(getUniformLocation(name), value); }
     public void setUniform(String name, float value) { glUniform1f(getUniformLocation(name), value); }
     public void setUniform(String name, boolean value) { glUniform1i(getUniformLocation(name), value ? 1 : 0); }
@@ -77,7 +77,7 @@ public class ShaderProgram {
 
     public void cleanup() {
         glUseProgram(0);
-        glDeleteProgram(programId);
+        if (programId != 0) glDeleteProgram(programId);
     }
 
     public int getProgramId() { return programId; }

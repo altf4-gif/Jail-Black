@@ -5,15 +5,8 @@ import com.jailblack.scene.VoxelModel;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.Reader;
-import java.io.Writer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
 public class ModelExportManager {
 
@@ -37,12 +30,11 @@ public class ModelExportManager {
         List<Map<String, Object>> voxelsData = new ArrayList<>();
         if (model.voxels != null) {
             for (Voxel v : model.voxels) {
-                Map<String, Object> voxelData = new HashMap<>();
-                voxelData.put("x", v.x);
-                voxelData.put("y", v.y);
-                voxelData.put("z", v.z);
-                voxelData.put("color", Voxel.colorToHex(v.color));
-                voxelsData.add(voxelData);
+                Map<String, Object> vd = new HashMap<>();
+                vd.put("x", v.x); vd.put("y", v.y); vd.put("z", v.z);
+                vd.put("color", Voxel.colorToHex(v.color));
+                vd.put("alpha", v.getAlpha());
+                voxelsData.add(vd);
             }
         }
         data.put("voxels", voxelsData);
@@ -64,30 +56,26 @@ public class ModelExportManager {
             System.err.println("Model not found: " + file.getPath());
             return null;
         }
-
         Gson gson = new Gson();
         try (Reader reader = new FileReader(file)) {
             Map<String, Object> data = gson.fromJson(reader, Map.class);
-
             String name = data.get("name") != null ? (String) data.get("name") : filename;
-            int sizeX = data.get("sizeX") != null ? ((Number) data.get("sizeX")).intValue() : 10;
-            int sizeY = data.get("sizeY") != null ? ((Number) data.get("sizeY")).intValue() : 10;
-            int sizeZ = data.get("sizeZ") != null ? ((Number) data.get("sizeZ")).intValue() : 10;
-
-            VoxelModel model = new VoxelModel(name, sizeX, sizeY, sizeZ);
-
+            int sx = data.get("sizeX") != null ? ((Number) data.get("sizeX")).intValue() : 10;
+            int sy = data.get("sizeY") != null ? ((Number) data.get("sizeY")).intValue() : 10;
+            int sz = data.get("sizeZ") != null ? ((Number) data.get("sizeZ")).intValue() : 10;
+            VoxelModel model = new VoxelModel(name, sx, sy, sz);
             List<Map<String, Object>> voxelsData = (List<Map<String, Object>>) data.get("voxels");
             if (voxelsData != null) {
-                for (Map<String, Object> voxelData : voxelsData) {
-                    int x = ((Number) voxelData.get("x")).intValue();
-                    int y = ((Number) voxelData.get("y")).intValue();
-                    int z = ((Number) voxelData.get("z")).intValue();
-                    String color = (String) voxelData.get("color");
-                    model.voxels.add(new Voxel(x, y, z, color));
+                for (Map<String, Object> vd : voxelsData) {
+                    int x = ((Number) vd.get("x")).intValue();
+                    int y = ((Number) vd.get("y")).intValue();
+                    int z = ((Number) vd.get("z")).intValue();
+                    String color = (String) vd.get("color");
+                    float alpha = vd.get("alpha") != null ? ((Number) vd.get("alpha")).floatValue() : 1.0f;
+                    model.voxels.add(new Voxel(x, y, z, color, alpha));
                 }
             }
             model.markAABBDirty();
-
             System.out.println("Model loaded: " + filename + ".jbm");
             return model;
         } catch (Exception e) {
@@ -96,4 +84,3 @@ public class ModelExportManager {
         }
     }
 }
-// === END OF FILE ===

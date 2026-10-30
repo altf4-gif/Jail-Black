@@ -15,7 +15,6 @@ import org.lwjgl.glfw.GLFW;
 import static org.lwjgl.opengl.GL33.*;
 
 public class Main {
-
     public static void main(String[] args) {
         Window window = new Window(1600, 900, "Jail-Black Studio");
         window.create();
@@ -23,20 +22,19 @@ public class Main {
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+        glEnable(GL_MULTISAMPLE);
 
         ShaderProgram basicShader = ShaderProgram.fromResources("shaders/basic.vert", "shaders/basic.frag");
         ShaderProgram outlineShader = ShaderProgram.fromResources("shaders/outline.vert", "shaders/outline.frag");
         ShaderProgram gridShader = ShaderProgram.fromResources("shaders/grid.vert", "shaders/grid.frag");
         ShaderProgram ghostShader = ShaderProgram.fromResources("shaders/ghost.vert", "shaders/ghost.frag");
-        ShaderProgram postShader = ShaderProgram.fromResources("shaders/post.vert", "shaders/post.frag");
 
         Camera camera = new Camera();
-
         Mesh boxMesh = MeshFactory.box(1, 1, 1);
         Mesh gridMesh = MeshFactory.grid(100.0f, 100);
         Mesh cubeOutlineMesh = MeshFactory.cubeOutline();
-
-        InstancedRenderer instancedRenderer = new InstancedRenderer(boxMesh, 100_000);
+        Mesh axisMesh = MeshFactory.axisLines();
+        InstancedRenderer instancedRenderer = new InstancedRenderer(boxMesh, 200_000);
         Framebuffer sceneFramebuffer = new Framebuffer(window.getWidth(), window.getHeight());
 
         ImGui.createContext();
@@ -44,7 +42,6 @@ public class Main {
         io.setIniFilename(null);
         io.getFonts().addFontDefault();
         io.addConfigFlags(ImGuiConfigFlags.DockingEnable);
-
         ImGuiImplGlfw imGuiGlfw = new ImGuiImplGlfw();
         ImGuiImplGl3 imGuiGl3 = new ImGuiImplGl3();
         imGuiGlfw.init(window.getHandle(), true);
@@ -52,11 +49,10 @@ public class Main {
 
         EditorState editor = new EditorState(window, camera,
                 basicShader, outlineShader, gridShader, ghostShader,
-                boxMesh, gridMesh, cubeOutlineMesh,
+                boxMesh, gridMesh, cubeOutlineMesh, axisMesh,
                 instancedRenderer, sceneFramebuffer);
 
         GLFW.glfwSetInputMode(window.getHandle(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
-
         GLFW.glfwSetScrollCallback(window.getHandle(), (win, xoffset, yoffset) -> {
             if (!ImGui.getIO().getWantCaptureMouse()) {
                 camera.zoom((float) yoffset);
@@ -64,7 +60,6 @@ public class Main {
         });
 
         double lastTime = GLFW.glfwGetTime();
-
         while (!window.shouldClose()) {
             double currentTime = GLFW.glfwGetTime();
             float dt = (float) (currentTime - lastTime);
@@ -76,7 +71,6 @@ public class Main {
             imGuiGlfw.newFrame();
             ImGui.newFrame();
 
-            // DockSpace под тулбаром (y=50, высота = окно - 50)
             ImGui.setNextWindowPos(0, 50, ImGuiCond.Always);
             ImGui.setNextWindowSize(io.getDisplaySizeX(), io.getDisplaySizeY() - 50, ImGuiCond.Always);
             ImGui.begin("##MainDockSpaceWindow",
@@ -94,7 +88,6 @@ public class Main {
 
             ImGui.render();
             imGuiGl3.renderDrawData(ImGui.getDrawData());
-
             window.swapAndPoll();
         }
 
@@ -103,16 +96,14 @@ public class Main {
         boxMesh.cleanup();
         gridMesh.cleanup();
         cubeOutlineMesh.cleanup();
+        axisMesh.cleanup();
         basicShader.cleanup();
         outlineShader.cleanup();
         gridShader.cleanup();
         ghostShader.cleanup();
-        postShader.cleanup();
-
         imGuiGl3.dispose();
         imGuiGlfw.dispose();
         ImGui.destroyContext();
-
         window.destroy();
     }
 }

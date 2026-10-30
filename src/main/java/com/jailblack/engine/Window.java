@@ -3,7 +3,6 @@ package com.jailblack.engine;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
-
 import java.nio.IntBuffer;
 
 import static org.lwjgl.glfw.GLFW.*;
@@ -13,7 +12,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 public class Window {
     private long handle;
     private int width, height;
-    private String title;
+    private final String title;
     private GLFWErrorCallback errorCallback;
 
     public Window(int width, int height, String title) {
@@ -23,8 +22,8 @@ public class Window {
     }
 
     public void create() {
-        GLFWErrorCallback.createPrint(System.err).set();
-
+        errorCallback = GLFWErrorCallback.createPrint(System.err);
+        errorCallback.set();
         if (!glfwInit()) throw new IllegalStateException("Unable to initialize GLFW");
 
         glfwDefaultWindowHints();
@@ -34,6 +33,7 @@ public class Window {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        glfwWindowHint(GLFW_SAMPLES, 4);
 
         handle = glfwCreateWindow(width, height, title, NULL, NULL);
         if (handle == NULL) throw new RuntimeException("Failed to create the GLFW window");
@@ -54,12 +54,15 @@ public class Window {
         glfwMakeContextCurrent(handle);
         glfwSwapInterval(1);
         glfwShowWindow(handle);
-
         GL.createCapabilities();
     }
 
     public boolean shouldClose() { return glfwWindowShouldClose(handle); }
-    public void swapAndPoll() { glfwSwapBuffers(handle); glfwPollEvents(); }
+
+    public void swapAndPoll() {
+        glfwSwapBuffers(handle);
+        glfwPollEvents();
+    }
 
     public void destroy() {
         glfwDestroyWindow(handle);

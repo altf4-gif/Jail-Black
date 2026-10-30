@@ -13,8 +13,11 @@ public class Camera {
     private float pitch = -20.0f;
     private final Vector3f up = new Vector3f(0f, 1f, 0f);
     private Mode mode = Mode.FLY;
+    private float fov = 60.0f;
+    private float nearPlane = 0.1f;
+    private float farPlane = 1000.0f;
 
-    public Camera() { updateFlyPosition(); }
+    public Camera() {}
 
     public void setMode(Mode mode) {
         if (this.mode == mode) return;
@@ -32,8 +35,7 @@ public class Camera {
         float sensitivity = 0.15f;
         yaw += deltaX * sensitivity;
         pitch -= deltaY * sensitivity;
-        if (pitch > 89.0f) pitch = 89.0f;
-        if (pitch < -89.0f) pitch = -89.0f;
+        pitch = Math.max(-89.0f, Math.min(89.0f, pitch));
         if (mode == Mode.ORBIT) updateOrbitPosition();
     }
 
@@ -45,7 +47,7 @@ public class Camera {
         Vector3f delta = new Vector3f(right).mul(-deltaX * sensitivity)
                 .add(new Vector3f(camUp).mul(deltaY * sensitivity));
         position.add(delta);
-        orbitTarget.add(delta);
+        if (mode == Mode.ORBIT) orbitTarget.add(delta);
     }
 
     public void zoom(float delta) {
@@ -65,8 +67,6 @@ public class Camera {
         float z = (float) (Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)));
         position.set(orbitTarget).sub(x * orbitDistance, y * orbitDistance, z * orbitDistance);
     }
-
-    private void updateFlyPosition() { }
 
     public void focus(Vector3f target, float distance) {
         orbitTarget.set(target);
@@ -93,7 +93,7 @@ public class Camera {
     }
 
     public Matrix4f getProjectionMatrix(float aspect) {
-        return new Matrix4f().perspective((float) Math.toRadians(60.0f), aspect, 0.1f, 1000.0f);
+        return new Matrix4f().perspective((float) Math.toRadians(fov), aspect, nearPlane, farPlane);
     }
 
     public Matrix4f getViewProjection(float aspect) {
@@ -104,4 +104,8 @@ public class Camera {
     public float getPitch() { return pitch; }
     public void setYaw(float yaw) { this.yaw = yaw; }
     public void setPitch(float pitch) { this.pitch = pitch; }
+    public void setFov(float fov) { this.fov = fov; }
+    public float getFov() { return fov; }
+    public void setNearPlane(float n) { this.nearPlane = n; }
+    public void setFarPlane(float f) { this.farPlane = f; }
 }

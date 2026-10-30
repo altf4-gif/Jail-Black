@@ -1,7 +1,6 @@
 package com.jailblack.scene;
 
 import org.joml.Vector3f;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -11,10 +10,7 @@ public class VoxelModel {
     public Transform transform;
     public List<Voxel> voxels;
     public String name;
-
-    public int sizeX = 1;
-    public int sizeY = 1;
-    public int sizeZ = 1;
+    public int sizeX = 1, sizeY = 1, sizeZ = 1;
 
     private Vector3f cachedAABBMin;
     private Vector3f cachedAABBMax;
@@ -51,18 +47,10 @@ public class VoxelModel {
         this.sizeZ = Math.max(1, sizeZ);
     }
 
-    public int getVoxelCount() {
-        if (voxels == null) return 0;
-        return voxels.size();
-    }
+    public int getVoxelCount() { return voxels == null ? 0 : voxels.size(); }
 
-    public void markAABBDirty() {
-        aabbDirty = true;
-    }
-
-    public boolean isAABBDirty() {
-        return aabbDirty;
-    }
+    public void markAABBDirty() { aabbDirty = true; }
+    public boolean isAABBDirty() { return aabbDirty; }
 
     public Vector3f getAABBMin() {
         if (aabbDirty || cachedAABBMin == null) recalculateAABB();
@@ -81,68 +69,39 @@ public class VoxelModel {
         } else {
             float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
             float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
-
             for (Voxel v : voxels) {
-                if (v.x < minX) minX = v.x;
-                if (v.y < minY) minY = v.y;
-                if (v.z < minZ) minZ = v.z;
-                if (v.x > maxX) maxX = v.x;
-                if (v.y > maxY) maxY = v.y;
-                if (v.z > maxZ) maxZ = v.z;
+                minX = Math.min(minX, v.x); minY = Math.min(minY, v.y); minZ = Math.min(minZ, v.z);
+                maxX = Math.max(maxX, v.x); maxY = Math.max(maxY, v.y); maxZ = Math.max(maxZ, v.z);
             }
-
             cachedAABBMin = new Vector3f(minX - 0.5f, minY - 0.5f, minZ - 0.5f);
             cachedAABBMax = new Vector3f(maxX + 0.5f, maxY + 0.5f, maxZ + 0.5f);
         }
         aabbDirty = false;
     }
 
-    /**
-     * Расширяет границы модели так, чтобы включить указанную точку.
-     * Если координата отрицательная, все существующие воксели сдвигаются
-     * в положительную сторону, а transform.position компенсируется, чтобы
-     * модель осталась на том же месте в мире.
-     */
     public void expandToInclude(int x, int y, int z) {
         expandToInclude(x, y, z, x, y, z);
     }
 
-    /**
-     * Расширяет границы модели так, чтобы включить весь диапазон [min..max]
-     * по каждой оси.
-     */
     public void expandToInclude(int xMin, int yMin, int zMin, int xMax, int yMax, int zMax) {
-        int shiftX = xMin < 0 ? -xMin : 0;
-        int shiftY = yMin < 0 ? -yMin : 0;
-        int shiftZ = zMin < 0 ? -zMin : 0;
-
+        int shiftX = Math.max(0, -xMin);
+        int shiftY = Math.max(0, -yMin);
+        int shiftZ = Math.max(0, -zMin);
         if (shiftX > 0 || shiftY > 0 || shiftZ > 0) {
             if (voxels != null) {
-                for (Voxel v : voxels) {
-                    v.x += shiftX;
-                    v.y += shiftY;
-                    v.z += shiftZ;
-                }
+                for (Voxel v : voxels) { v.x += shiftX; v.y += shiftY; v.z += shiftZ; }
             }
             transform.position.x -= shiftX;
             transform.position.y -= shiftY;
             transform.position.z -= shiftZ;
-
-            sizeX += shiftX;
-            sizeY += shiftY;
-            sizeZ += shiftZ;
+            sizeX += shiftX; sizeY += shiftY; sizeZ += shiftZ;
         }
-
         int newSizeX = Math.max(sizeX, xMax + shiftX + 1);
         int newSizeY = Math.max(sizeY, yMax + shiftY + 1);
         int newSizeZ = Math.max(sizeZ, zMax + shiftZ + 1);
-
         if (newSizeX != sizeX || newSizeY != sizeY || newSizeZ != sizeZ) {
-            sizeX = newSizeX;
-            sizeY = newSizeY;
-            sizeZ = newSizeZ;
+            sizeX = newSizeX; sizeY = newSizeY; sizeZ = newSizeZ;
         }
-
         markAABBDirty();
     }
 
@@ -155,25 +114,12 @@ public class VoxelModel {
     }
 
     public boolean addVoxel(int x, int y, int z, Vector3f color) {
-        if (voxels == null) return false;
-        if (x < 0 || y < 0 || z < 0) return false;
-        if (x >= sizeX || y >= sizeY || z >= sizeZ) return false;
-
-        Voxel existing = getVoxelAt(x, y, z);
-        if (existing != null) {
-            existing.color = Voxel.toHex(color);
-        } else {
-            voxels.add(new Voxel(x, y, z, Voxel.toHex(color)));
-        }
-        markAABBDirty();
-        return true;
+        return addVoxel(x, y, z, Voxel.toHex(color));
     }
 
     public boolean addVoxel(int x, int y, int z, String hexColor) {
-        if (voxels == null) return false;
-        if (x < 0 || y < 0 || z < 0) return false;
-        if (x >= sizeX || y >= sizeY || z >= sizeZ) return false;
-
+        if (voxels == null || x < 0 || y < 0 || z < 0 || x >= sizeX || y >= sizeY || z >= sizeZ)
+            return false;
         Voxel existing = getVoxelAt(x, y, z);
         if (existing != null) {
             existing.color = Voxel.colorToHex(hexColor);
@@ -186,7 +132,7 @@ public class VoxelModel {
 
     public boolean removeVoxel(int x, int y, int z) {
         if (voxels == null) return false;
-        boolean removed = voxels.removeIf(voxel -> voxel.x == x && voxel.y == y && voxel.z == z);
+        boolean removed = voxels.removeIf(v -> v.x == x && v.y == y && v.z == z);
         if (removed) markAABBDirty();
         return removed;
     }
@@ -195,5 +141,20 @@ public class VoxelModel {
         if (voxels != null) voxels.clear();
         markAABBDirty();
     }
+
+    public boolean containsVoxel(int x, int y, int z) {
+        return getVoxelAt(x, y, z) != null;
+    }
+
+    public VoxelModel deepCopy() {
+        VoxelModel copy = new VoxelModel(name + "_copy", sizeX, sizeY, sizeZ);
+        copy.id = UUID.randomUUID().toString();
+        copy.transform = transform.copy();
+        if (voxels != null) {
+            copy.voxels.clear();
+            for (Voxel v : voxels) copy.voxels.add(v.copy());
+        }
+        copy.markAABBDirty();
+        return copy;
+    }
 }
-// === END OF FILE ===

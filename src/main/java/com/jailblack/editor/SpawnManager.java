@@ -23,26 +23,17 @@ public class SpawnManager {
         this.currentAlpha = currentAlpha;
     }
 
-    public void setCurrentColor(Vector3f color) {
-        this.currentColor = color;
-    }
-
-    public void setCurrentAlpha(float alpha) {
-        this.currentAlpha = alpha;
-    }
-
-    public Vector3f getCurrentColor() {
-        return currentColor;
-    }
+    public void setCurrentColor(Vector3f color) { this.currentColor = color; }
+    public void setCurrentAlpha(float alpha) { this.currentAlpha = alpha; }
+    public Vector3f getCurrentColor() { return currentColor; }
+    public float getCurrentAlpha() { return currentAlpha; }
 
     public VoxelModel createNewModel(String name, int sizeX, int sizeY, int sizeZ) {
         VoxelModel model = new VoxelModel(name, sizeX, sizeY, sizeZ);
-        if (model.transform != null) {
-            model.transform.position.set(0.0f, 0.0f, 0.0f);
-            model.transform.rotation.set(0.0f, 0.0f, 0.0f);
-            model.transform.scale.set(1.0f, 1.0f, 1.0f);
-        }
-        scene.getModels().add(model);
+        model.transform.position.set(0, 0, 0);
+        model.transform.rotation.set(0, 0, 0);
+        model.transform.scale.set(1, 1, 1);
+        commandHistory.execute(new Commands.SpawnCommand(scene, model));
         return model;
     }
 
@@ -52,7 +43,6 @@ public class SpawnManager {
         spawnPos.x = Math.round(spawnPos.x);
         spawnPos.y = Math.round(spawnPos.y);
         spawnPos.z = Math.round(spawnPos.z);
-
         VoxelModel newObj = new VoxelModel(spawnPos.x, spawnPos.y, spawnPos.z);
         newObj.name = "VoxelObject_" + (scene.getModels().size() + 1);
         newObj.voxels.add(new Voxel(0, 0, 0, Voxel.toHex(color)));
@@ -67,27 +57,8 @@ public class SpawnManager {
 
     public void duplicateModel(VoxelModel source) {
         if (source == null) return;
-
-        VoxelModel copy = new VoxelModel(
-                source.name + "_copy",
-                source.sizeX,
-                source.sizeY,
-                source.sizeZ);
-
-        if (source.voxels != null) {
-            copy.voxels.clear();
-            for (Voxel voxel : source.voxels) copy.voxels.add(voxel.copy());
-        }
-
-        if (source.transform != null && copy.transform != null) {
-            copy.transform.position.set(source.transform.position);
-            copy.transform.position.x += 2.0f;
-            copy.transform.rotation.set(source.transform.rotation);
-            copy.transform.scale.set(source.transform.scale);
-        }
-
-        copy.markAABBDirty();
-        scene.getModels().add(copy);
+        VoxelModel copy = source.deepCopy();
+        copy.transform.position.x += 2.0f;
+        commandHistory.execute(new Commands.SpawnCommand(scene, copy));
     }
 }
-// === END OF FILE ===

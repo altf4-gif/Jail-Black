@@ -16,7 +16,7 @@ import java.util.List;
 
 public class EditorUiState {
     public enum WorkspaceKind { NONE, MODEL, MAP }
-    public enum VoxelTool { ADD, REMOVE, PAINT, EYEDROPPER, BRUSH }
+    public enum VoxelTool { ADD, REMOVE, PAINT, EYEDROPPER, FILL }
     public enum BrushShape { CUBE, SPHERE }
     public enum UiAction { NONE, CREATE_MODEL_WORKSPACE, OPEN_MAP_WORKSPACE }
 
@@ -29,46 +29,25 @@ public class EditorUiState {
     private boolean startupVisible = true;
     private boolean createModelPopupRequested = false;
     private boolean createModelPopupOpen = false;
-
     private WorkspaceKind workspaceKind = WorkspaceKind.NONE;
-
     private final ImString modelName = new ImString("Untitled Model", 128);
     private final ImInt modelWidth = new ImInt(16);
     private final ImInt modelHeight = new ImInt(16);
     private final ImInt modelDepth = new ImInt(16);
-
     private String activeModelName = "Untitled Model";
-    private int activeModelWidth = 16;
-    private int activeModelHeight = 16;
-    private int activeModelDepth = 16;
-
+    private int activeModelWidth = 16, activeModelHeight = 16, activeModelDepth = 16;
     private VoxelTool voxelTool = VoxelTool.ADD;
     private BrushShape brushShape = BrushShape.CUBE;
     private final int[] paintBrushSize = {1};
-
-    private boolean showGhostVoxel = true;
-    private boolean showGhostInAllTools = false;
-
-    private boolean mirrorX = false;
-    private boolean mirrorY = false;
-    private boolean mirrorZ = false;
-
-    private boolean showGrid = true;
-    private boolean showBounds = true;
-
-    private boolean showExplorer = true;
-    private boolean showProperties = true;
-    private boolean showViewport = true;
-    private boolean showStatusWindow = true;
-    private boolean showPaletteManager = true;
-    private boolean showModelProperties = true;
-
+    private boolean showGhostVoxel = true, showGhostInAllTools = false;
+    private boolean mirrorX = false, mirrorY = false, mirrorZ = false;
+    private boolean showGrid = true, showBounds = true;
+    private boolean showExplorer = true, showProperties = true, showViewport = true;
+    private boolean showStatusWindow = true, showPaletteManager = true, showModelProperties = true;
     private boolean fillSelectionRequested = false;
-
-    private final float[] pickedColor = {1.0f, 1.0f, 1.0f, 1.0f};
-    private final float[] newPaletteColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    private final float[] pickedColor = {1, 1, 1, 1};
+    private final float[] newPaletteColor = {1, 1, 1, 1};
     private final ImString newPaletteGroupName = new ImString("New Group", 128);
-
     private final List<PaletteGroup> paletteGroups = new ArrayList<>();
     private PaletteGroup activePaletteGroup;
 
@@ -91,36 +70,30 @@ public class EditorUiState {
     }
 
     private void createDefaultPaletteGroups() {
-        PaletteGroup defaultGroup = new PaletteGroup("Default");
-        defaultGroup.colors.add(new Vector3f(1.0f, 1.0f, 1.0f));
-        defaultGroup.colors.add(new Vector3f(0.8f, 0.1f, 0.1f));
-        defaultGroup.colors.add(new Vector3f(0.1f, 0.8f, 0.1f));
-        defaultGroup.colors.add(new Vector3f(0.1f, 0.3f, 1.0f));
-        defaultGroup.colors.add(new Vector3f(0.9f, 0.8f, 0.2f));
-        defaultGroup.colors.add(new Vector3f(0.1f, 0.1f, 0.1f));
-
-        PaletteGroup environmentGroup = new PaletteGroup("Environment");
-        environmentGroup.colors.add(new Vector3f(0.35f, 0.22f, 0.12f));
-        environmentGroup.colors.add(new Vector3f(0.15f, 0.45f, 0.12f));
-        environmentGroup.colors.add(new Vector3f(0.45f, 0.45f, 0.45f));
-
-        paletteGroups.add(defaultGroup);
-        paletteGroups.add(environmentGroup);
-        activePaletteGroup = defaultGroup;
+        PaletteGroup def = new PaletteGroup("Default");
+        def.colors.add(new Vector3f(1.0f, 1.0f, 1.0f));
+        def.colors.add(new Vector3f(0.8f, 0.1f, 0.1f));
+        def.colors.add(new Vector3f(0.1f, 0.8f, 0.1f));
+        def.colors.add(new Vector3f(0.1f, 0.3f, 1.0f));
+        def.colors.add(new Vector3f(0.9f, 0.8f, 0.2f));
+        def.colors.add(new Vector3f(0.1f, 0.1f, 0.1f));
+        PaletteGroup env = new PaletteGroup("Environment");
+        env.colors.add(new Vector3f(0.35f, 0.22f, 0.12f));
+        env.colors.add(new Vector3f(0.15f, 0.45f, 0.12f));
+        env.colors.add(new Vector3f(0.45f, 0.45f, 0.45f));
+        paletteGroups.add(def);
+        paletteGroups.add(env);
+        activePaletteGroup = def;
     }
 
     public UiAction renderStartup(Window window) {
         UiAction action = UiAction.NONE;
-
         ImGui.setNextWindowPos(window.getWidth() * 0.5f, window.getHeight() * 0.5f, ImGuiCond.Always, 0.5f, 0.5f);
         ImGui.setNextWindowSize(480, 260, ImGuiCond.Always);
-
         int flags = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove;
-
         ImGui.begin("Jail-Black Studio", flags);
         ImGui.text("Choose Editor");
         ImGui.separator();
-
         if (ImGui.button("Model Editor", 200, 48)) {
             workspaceKind = WorkspaceKind.MODEL;
             requestCreateModelPopup();
@@ -131,9 +104,7 @@ public class EditorUiState {
             startupVisible = false;
             action = UiAction.OPEN_MAP_WORKSPACE;
         }
-
-        ImGui.spacing();
-        ImGui.separator();
+        ImGui.spacing(); ImGui.separator();
         ImGui.text("Project Folders");
         ImGui.bulletText("Maps: /maps");
         ImGui.bulletText("Models: /models");
@@ -141,7 +112,6 @@ public class EditorUiState {
         ImGui.spacing();
         ImGui.textColored(0.5f, 0.5f, 0.5f, 1.0f, "Model Editor is the current development target.");
         ImGui.end();
-
         UiAction popupAction = renderCreateModelDialog();
         if (popupAction != UiAction.NONE) action = popupAction;
         return action;
@@ -149,24 +119,16 @@ public class EditorUiState {
 
     public UiAction renderMainMenuBar() {
         UiAction action = UiAction.NONE;
-
         if (ImGui.beginMainMenuBar()) {
             if (ImGui.beginMenu("File")) {
-                if (ImGui.menuItem("New Model", "Ctrl+N")) {
-                    workspaceKind = WorkspaceKind.MODEL;
-                    requestCreateModelPopup();
-                }
+                if (ImGui.menuItem("New Model", "Ctrl+N")) { workspaceKind = WorkspaceKind.MODEL; requestCreateModelPopup(); }
                 ImGui.menuItem("Save Model JSON", "Ctrl+S");
                 ImGui.menuItem("Load Model JSON", "Ctrl+O");
                 ImGui.separator();
                 ImGui.menuItem("Save Map", "");
                 ImGui.menuItem("Load Map", "");
-                ImGui.separator();
-                ImGui.menuItem("Open Models Folder", "");
-                ImGui.menuItem("Open Maps Folder", "");
                 ImGui.endMenu();
             }
-
             if (ImGui.beginMenu("Edit")) {
                 ImGui.menuItem("Select All", "Ctrl+A");
                 ImGui.menuItem("Deselect", "Esc");
@@ -176,32 +138,17 @@ public class EditorUiState {
                 if (ImGui.menuItem("Fill Selection", "")) fillSelectionRequested = true;
                 ImGui.endMenu();
             }
-
             if (ImGui.beginMenu("Voxel")) {
                 if (ImGui.menuItem("Add Voxel", "B", voxelTool == VoxelTool.ADD)) voxelTool = VoxelTool.ADD;
                 if (ImGui.menuItem("Remove Voxel", "X", voxelTool == VoxelTool.REMOVE)) voxelTool = VoxelTool.REMOVE;
                 if (ImGui.menuItem("Paint Voxel", "G", voxelTool == VoxelTool.PAINT)) voxelTool = VoxelTool.PAINT;
                 if (ImGui.menuItem("Eyedropper", "Alt+LMB", voxelTool == VoxelTool.EYEDROPPER)) voxelTool = VoxelTool.EYEDROPPER;
-                if (ImGui.menuItem("Brush", "Shift+B", voxelTool == VoxelTool.BRUSH)) voxelTool = VoxelTool.BRUSH;
-
-                ImGui.separator();
-                ImGui.text("Paint Brush");
-                ImGui.sliderInt("Size", paintBrushSize, 1, 16);
-                ImGui.textColored(0.5f, 0.5f, 0.5f, 1.0f, "Size affects painting only.");
-
-                if (ImGui.radioButton("Cube Brush", brushShape == BrushShape.CUBE)) brushShape = BrushShape.CUBE;
-                ImGui.sameLine();
-                if (ImGui.radioButton("Sphere Brush", brushShape == BrushShape.SPHERE)) brushShape = BrushShape.SPHERE;
-
+                if (ImGui.menuItem("Fill", "F", voxelTool == VoxelTool.FILL)) voxelTool = VoxelTool.FILL;
                 ImGui.separator();
                 showGhostVoxel = checkbox("Show Ghost Voxel", showGhostVoxel);
                 showGhostInAllTools = checkbox("Ghost In All Tools", showGhostInAllTools);
-
-                ImGui.separator();
-                if (ImGui.menuItem("Fill Selection", "")) fillSelectionRequested = true;
                 ImGui.endMenu();
             }
-
             if (ImGui.beginMenu("Mirror")) {
                 mirrorX = checkbox("Mirror X", mirrorX);
                 mirrorY = checkbox("Mirror Y", mirrorY);
@@ -210,18 +157,11 @@ public class EditorUiState {
                 if (ImGui.menuItem("Clear Mirror")) { mirrorX = false; mirrorY = false; mirrorZ = false; }
                 ImGui.endMenu();
             }
-
             if (ImGui.beginMenu("View")) {
                 showGrid = checkbox("Grid", showGrid);
                 showBounds = checkbox("Model Bounds", showBounds);
-                ImGui.separator();
-                ImGui.menuItem("Focus Model", "F");
-                ImGui.menuItem("Reset Camera", "");
-                ImGui.separator();
-                ImGui.menuItem("Snap to Grid: Always On", "");
                 ImGui.endMenu();
             }
-
             if (ImGui.beginMenu("Palettes")) {
                 showPaletteManager = checkbox("Palette Manager", showPaletteManager);
                 ImGui.separator();
@@ -230,7 +170,6 @@ public class EditorUiState {
                 }
                 ImGui.endMenu();
             }
-
             if (ImGui.beginMenu("Windows")) {
                 showExplorer = checkbox("Explorer", showExplorer);
                 showProperties = checkbox("Properties", showProperties);
@@ -240,10 +179,8 @@ public class EditorUiState {
                 showPaletteManager = checkbox("Palette Manager", showPaletteManager);
                 ImGui.endMenu();
             }
-
             ImGui.endMainMenuBar();
         }
-
         UiAction popupAction = renderCreateModelDialog();
         if (popupAction != UiAction.NONE) action = popupAction;
         return action;
@@ -251,45 +188,30 @@ public class EditorUiState {
 
     private UiAction renderCreateModelDialog() {
         UiAction action = UiAction.NONE;
-
         if (createModelPopupRequested) {
             ImGui.openPopup("Create Model");
             createModelPopupRequested = false;
             createModelPopupOpen = true;
         }
-
         if (!createModelPopupOpen) return action;
-
         ImBoolean open = new ImBoolean(true);
-
         if (ImGui.beginPopupModal("Create Model", open, ImGuiWindowFlags.AlwaysAutoResize)) {
             ImGui.inputText("Model Name", modelName);
             ImGui.inputInt("Width (X)", modelWidth);
             ImGui.inputInt("Height (Y)", modelHeight);
             ImGui.inputInt("Depth (Z)", modelDepth);
-
             ImGui.separator();
-            ImGui.text("Preview");
-            ImGui.bulletText("Bounds will be shown on all edges.");
-            ImGui.bulletText("Snap to Grid is always enabled.");
-            ImGui.bulletText("Model data will be saved as JSON.");
-
-            ImGui.spacing();
-
             if (ImGui.button("Create", 120, 0)) {
                 activeModelName = modelName.get().trim().isEmpty() ? "Untitled Model" : modelName.get().trim();
                 activeModelWidth = clampSize(modelWidth.get());
                 activeModelHeight = clampSize(modelHeight.get());
                 activeModelDepth = clampSize(modelDepth.get());
-
                 modelWidth.set(activeModelWidth);
                 modelHeight.set(activeModelHeight);
                 modelDepth.set(activeModelDepth);
-
                 workspaceKind = WorkspaceKind.MODEL;
                 startupVisible = false;
                 createModelPopupOpen = false;
-
                 action = UiAction.CREATE_MODEL_WORKSPACE;
                 ImGui.closeCurrentPopup();
             }
@@ -298,20 +220,16 @@ public class EditorUiState {
                 createModelPopupOpen = false;
                 ImGui.closeCurrentPopup();
             }
-
             ImGui.endPopup();
         }
-
         if (!open.get()) createModelPopupOpen = false;
         return action;
     }
 
     public void renderModelPropertiesWindow() {
         if (!showModelProperties) return;
-
         ImGui.setNextWindowSize(300, 220, ImGuiCond.Once);
         ImGui.begin("Model Properties");
-
         ImGui.text("Name: " + activeModelName);
         ImGui.text("Type: " + workspaceKind.name());
         ImGui.separator();
@@ -319,97 +237,63 @@ public class EditorUiState {
         ImGui.bulletText("Width X: " + activeModelWidth);
         ImGui.bulletText("Height Y: " + activeModelHeight);
         ImGui.bulletText("Depth Z: " + activeModelDepth);
-        ImGui.separator();
-        ImGui.text("Rules");
-        ImGui.bulletText("Snap to Grid: Always On");
-        ImGui.bulletText("Bounds: All Edges");
-        ImGui.bulletText("Format: JSON");
-
         ImGui.end();
     }
 
     public void renderPaletteManagerWindow() {
         if (!showPaletteManager) return;
-
         ImGui.setNextWindowSize(340, 420, ImGuiCond.Once);
         ImGui.begin("Palette Manager");
-
         ImGui.text("Groups");
         ImGui.separator();
-
         for (PaletteGroup group : paletteGroups) {
-            boolean selected = activePaletteGroup == group;
-            if (ImGui.selectable(group.name, selected)) activePaletteGroup = group;
+            if (ImGui.selectable(group.name, activePaletteGroup == group)) activePaletteGroup = group;
         }
-
         ImGui.spacing();
         ImGui.inputText("New Group", newPaletteGroupName);
-
         if (ImGui.button("Create Palette Group")) {
-            String groupName = newPaletteGroupName.get().trim();
-            if (!groupName.isEmpty()) {
-                PaletteGroup group = new PaletteGroup(groupName);
-                paletteGroups.add(group);
-                activePaletteGroup = group;
+            String gn = newPaletteGroupName.get().trim();
+            if (!gn.isEmpty()) {
+                PaletteGroup g = new PaletteGroup(gn);
+                paletteGroups.add(g);
+                activePaletteGroup = g;
             }
         }
-
         ImGui.separator();
-        ImGui.text("Picked Color");
-        ImGui.colorButton("##PickedColor", pickedColor, 0, 32, 32);
-        ImGui.sameLine();
-        ImGui.text("Eyedropper output will appear here.");
-        ImGui.separator();
-        ImGui.text("Active Group");
-
         if (activePaletteGroup != null) {
             ImGui.text(activePaletteGroup.name);
             ImGui.colorEdit4("New Color", newPaletteColor);
-
             if (ImGui.button("Add Color")) {
-                activePaletteGroup.colors.add(new Vector3f(
-                        newPaletteColor[0], newPaletteColor[1], newPaletteColor[2]));
+                activePaletteGroup.colors.add(new Vector3f(newPaletteColor[0], newPaletteColor[1], newPaletteColor[2]));
             }
-
             ImGui.spacing();
             int index = 0;
             for (Vector3f color : activePaletteGroup.colors) {
                 float[] rgba = {color.x, color.y, color.z, 1.0f};
-                if (ImGui.colorButton("##PaletteColor" + index, rgba, 0, 26, 26)) {
-                    pickedColor[0] = color.x;
-                    pickedColor[1] = color.y;
-                    pickedColor[2] = color.z;
-                    pickedColor[3] = 1.0f;
+                if (ImGui.colorButton("##PC" + index, rgba, 0, 26, 26)) {
+                    pickedColor[0] = color.x; pickedColor[1] = color.y;
+                    pickedColor[2] = color.z; pickedColor[3] = 1.0f;
                 }
                 if ((index + 1) % 8 != 0) ImGui.sameLine();
                 index++;
             }
         }
-
         ImGui.end();
     }
 
     public void renderStatusWindow(float dt, int objectCount, int voxelCount, int instanceCount) {
         if (!showStatusWindow) return;
-
         ImGui.setNextWindowSize(360, 190, ImGuiCond.Once);
         ImGui.begin("Status");
-
         float fps = dt > 0.0f ? 1.0f / dt : 0.0f;
-
         ImGui.text("Workspace: " + workspaceKind.name());
         ImGui.text("Tool: " + voxelTool.name());
-        ImGui.text("Brush Shape: " + brushShape.name());
-        ImGui.text("Paint Brush Size: " + paintBrushSize[0]);
         ImGui.separator();
-        ImGui.text("Cursor Voxel: -");
         ImGui.text("Objects: " + objectCount);
         ImGui.text("Voxels: " + voxelCount);
         ImGui.text("Instances: " + instanceCount);
         ImGui.separator();
         ImGui.text("FPS: " + String.format("%.1f", fps));
-        ImGui.text("Snap to Grid: Always On");
-
         ImGui.end();
     }
 
@@ -419,9 +303,7 @@ public class EditorUiState {
         return value;
     }
 
-    private int clampSize(int value) {
-        return Math.max(1, Math.min(value, 512));
-    }
+    private int clampSize(int value) { return Math.max(1, Math.min(value, 512)); }
 
     public void requestCreateModelPopup() { createModelPopupRequested = true; }
     public boolean isStartupVisible() { return startupVisible; }
@@ -443,11 +325,9 @@ public class EditorUiState {
     public int getActiveModelWidth() { return activeModelWidth; }
     public int getActiveModelHeight() { return activeModelHeight; }
     public int getActiveModelDepth() { return activeModelDepth; }
-
     public boolean consumeFillSelectionRequest() {
-        boolean value = fillSelectionRequested;
+        boolean v = fillSelectionRequested;
         fillSelectionRequested = false;
-        return value;
+        return v;
     }
 }
-// === END OF FILE ===
