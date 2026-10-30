@@ -6,6 +6,7 @@ import com.jailblack.scene.VoxelModel;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class Commands {
@@ -206,4 +207,87 @@ public class Commands {
         @Override public void undo() { scene.removeModel(combined); for (VoxelModel m : sources) scene.addModel(m); }
         @Override public String getDescription() { return "Combine " + sources.size() + " objects"; }
     }
+
+    /**
+     * Удаляет набор вокселей из модели по индексам.
+     * execute(): удаляет с конца (по убыванию индекса) — промежуточные индексы не сдвигаются.
+     * undo(): вставляет по возрастанию — элементы с меньшим индексом восстанавливаются первыми,
+     *         поэтому более поздние индексы остаются валидными.
+     */
+    public static class DeleteVoxelsCommand extends Command {
+        private final VoxelModel model;
+        private final List<Voxel> removedVoxels;
+        private final List<Integer> removedIndices;
+
+        public DeleteVoxelsCommand(VoxelModel model, List<Voxel> removedVoxels, List<Integer> removedIndices) {
+            this.model = model;
+            this.removedVoxels = new ArrayList<>();
+            for (Voxel v : removedVoxels) this.removedVoxels.add(v.copy());
+            this.removedIndices = new ArrayList<>(removedIndices);
+        }
+
+        @Override public void execute() {
+            List<Integer> sorted = new ArrayList<>(removedIndices);
+            sorted.sort(Collections.reverseOrder());
+            for (int idx : sorted) {
+                if (idx >= 0 && idx < model.voxels.size()) {
+                    model.voxels.remove(idx);
+                }
+            }
+            model.markAABBDirty();
+        }
+
+        @Override public void undo() {
+            for (int i = 0; i < removedIndices.size(); i++) {
+                int idx = removedIndices.get(i);
+                if (idx >= 0 && idx <= model.voxels.size()) {
+                    model.voxels.add(idx, removedVoxels.get(i).copy());
+                }
+            }
+            model.markAABBDirty();
+        }
+
+        @Override public String getDescription() { return "Delete " + removedVoxels.size() + " voxel(s)"; }
+    }
+
+    /**
+     * Комплексная правка модели: воксели + bounds (sizeX/Y/Z) + позиция трансформа.
+     * Нужна, когда при добавлении вокселя за пределы объёма модель одновременно
+     * расширяется (expandToInclude сдвигает transform.position) — обычный
+     * VoxelEditCommand этого не откатывает.
+     */
+    public static class ModelEditCommand extends Command {
+        private final VoxelModel model;
+        private final List<Voxel> oldVoxels, newVoxels;
+        private final Vector3f oldPos, newPos;
+        private final int osx, osy, osz, nsx, nsy, nsz;
+
+        public ModelEditCommand(VoxelModel model, List<Voxel> oldVoxels, List<Voxel> newVoxels,
+                                Vector3f oldPos, Vector3f newPos,
+                                int osx, int osy, int osz, int nsx, int nsy, int nsz) {
+            this.model = model;
+            this.oldVoxels = copy(oldVoxels);
+            this.newVoxels = copy(newVoxels);
+            this.oldPos = new Vector3f(oldPos);
+            this.newPos = new Vector3f(newPos);
+            this.osx = osx; this.osy = osy; this.osz = osz;
+            this.nsx = nsx; this.nsy = nsy; this.nsz = nsz;
+        }
+        private static List<Voxel> copy(List<Voxel> src) {
+            List<Voxel> out = new ArrayList<>();
+            if (src != null) for (Voxel v : src) out.add(v.copy());
+            return out;
+        }
+        private void apply(List<Voxel> vox, Vector3f pos, int sx, int sy, int sz) {
+            model.voxels.clear();
+            for (Voxel v : vox) model.voxels.add(v.copy());
+            model.transform.position.set(pos);
+            model.sizeX = sx; model.sizeY = sy; model.sizeZ = sz;
+            model.markAABBDirty();
+        }
+        @Override public void execute() { apply(newVoxels, newPos, nsx, nsy, nsz); }
+        @Override public void undo() { apply(oldVoxels, oldPos, osx, osy, osz); }
+        @Override public String getDescription() { return "Edit " + model.name + " (voxels+bounds)"; }
+    }
 }
+// === END OF FILE ===

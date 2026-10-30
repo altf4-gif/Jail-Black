@@ -33,6 +33,36 @@ public class SpawnManager {
         model.transform.position.set(0, 0, 0);
         model.transform.rotation.set(0, 0, 0);
         model.transform.scale.set(1, 1, 1);
+
+        int cx = sizeX / 2;
+        int cy = 0;
+        int cz = sizeZ / 2;
+        model.voxels.add(new Voxel(cx, cy, cz, Voxel.toHex(currentColor)));
+        model.markAABBDirty();
+
+        commandHistory.execute(new Commands.SpawnCommand(scene, model));
+        return model;
+    }
+
+    public VoxelModel createNewModelAtCamera(String name, int sizeX, int sizeY, int sizeZ, Camera camera) {
+        VoxelModel model = new VoxelModel(name, sizeX, sizeY, sizeZ);
+
+        Vector3f front = camera.getFront();
+        Vector3f spawnPos = new Vector3f(camera.getPosition()).add(new Vector3f(front).mul(8.0f));
+        spawnPos.x = Math.round(spawnPos.x);
+        spawnPos.y = Math.max(0, Math.round(spawnPos.y));
+        spawnPos.z = Math.round(spawnPos.z);
+
+        model.transform.position.set(spawnPos);
+        model.transform.rotation.set(0, 0, 0);
+        model.transform.scale.set(1, 1, 1);
+
+        int cx = sizeX / 2;
+        int cy = 0;
+        int cz = sizeZ / 2;
+        model.voxels.add(new Voxel(cx, cy, cz, Voxel.toHex(currentColor)));
+        model.markAABBDirty();
+
         commandHistory.execute(new Commands.SpawnCommand(scene, model));
         return model;
     }
@@ -62,3 +92,4 @@ public class SpawnManager {
         commandHistory.execute(new Commands.SpawnCommand(scene, copy));
     }
 }
+// === END OF FILE ===

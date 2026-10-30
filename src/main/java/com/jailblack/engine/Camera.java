@@ -2,6 +2,7 @@ package com.jailblack.engine;
 
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 
 public class Camera {
     public enum Mode { FLY, ORBIT }
@@ -83,6 +84,20 @@ public class Camera {
         return front.normalize();
     }
 
+    public Vector3f getRayDirection(float mouseX, float mouseY, int screenWidth, int screenHeight) {
+        float ndcX = (2.0f * mouseX / screenWidth) - 1.0f;
+        float ndcY = 1.0f - (2.0f * mouseY / screenHeight);
+        float aspect = (float) screenWidth / (float) Math.max(screenHeight, 1);
+        Matrix4f invVP = new Matrix4f(getViewProjection(aspect)).invert();
+        Vector4f near4 = new Vector4f(ndcX, ndcY, -1.0f, 1.0f);
+        invVP.transform(near4);
+        near4.div(near4.w);
+        Vector4f far4 = new Vector4f(ndcX, ndcY, 1.0f, 1.0f);
+        invVP.transform(far4);
+        far4.div(far4.w);
+        return new Vector3f(far4.x - near4.x, far4.y - near4.y, far4.z - near4.z).normalize();
+    }
+
     public Vector3f getRight() { return new Vector3f(getFront()).cross(up).normalize(); }
     public Vector3f getUp() { return new Vector3f(getRight()).cross(getFront()).normalize(); }
     public Vector3f getPosition() { return new Vector3f(position); }
@@ -109,3 +124,4 @@ public class Camera {
     public void setNearPlane(float n) { this.nearPlane = n; }
     public void setFarPlane(float f) { this.farPlane = f; }
 }
+// === END OF FILE ===

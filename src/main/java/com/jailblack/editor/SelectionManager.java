@@ -7,6 +7,7 @@ import com.jailblack.scene.Voxel;
 import com.jailblack.scene.VoxelModel;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
@@ -25,7 +26,15 @@ public class SelectionManager {
 
     public VoxelModel pick() {
         Vector3f camPos = camera.getPosition();
-        Vector3f camDir = camera.getFront();
+        double[] mx = new double[1], my = new double[1];
+        GLFW.glfwGetCursorPos(window.getHandle(), mx, my);
+        float mX = (float)(mx[0] - 250);
+        float mY = (float)(my[0] - 64);
+        int vpW = window.getWidth() - 500;
+        int vpH = window.getHeight() - 104;
+        if (mX < 0 || mX >= vpW || mY < 0 || mY >= vpH) { mX = vpW / 2f; mY = vpH / 2f; }
+        Vector3f camDir = camera.getRayDirection(mX, mY, vpW, vpH);
+
         VoxelModel hitObj = null;
         float minDist = Float.MAX_VALUE;
         for (VoxelModel obj : scene.getModels()) {
@@ -39,7 +48,8 @@ public class SelectionManager {
                 for (Voxel v : obj.voxels) {
                     Vector3f p = new Vector3f(v.x, v.y, v.z);
                     model.transformPosition(p);
-                    min.min(p); max.max(p);
+                    min.min(p);
+                    max.max(p);
                 }
             }
             min.sub(0.5f, 0.5f, 0.5f);
@@ -69,3 +79,4 @@ public class SelectionManager {
     public void selectAll() { selectedObjects.clear(); selectedObjects.addAll(scene.getModels()); }
     public void clearSelection() { selectedObjects.clear(); }
 }
+// === END OF FILE ===
