@@ -76,8 +76,9 @@ public class Main {
             imGuiGlfw.newFrame();
             ImGui.newFrame();
 
-            ImGui.setNextWindowPos(0, 0, ImGuiCond.Always);
-            ImGui.setNextWindowSize(io.getDisplaySizeX(), io.getDisplaySizeY(), ImGuiCond.Always);
+            // DockSpace под тулбаром (y=50, высота = окно - 50)
+            ImGui.setNextWindowPos(0, 50, ImGuiCond.Always);
+            ImGui.setNextWindowSize(io.getDisplaySizeX(), io.getDisplaySizeY() - 50, ImGuiCond.Always);
             ImGui.begin("##MainDockSpaceWindow",
                     ImGuiWindowFlags.NoTitleBar |
                     ImGuiWindowFlags.NoCollapse |
