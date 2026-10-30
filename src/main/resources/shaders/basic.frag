@@ -2,7 +2,7 @@
 in vec3 vNormal;
 in vec2 vUv;
 in vec3 vWorldPos;
-in vec3 vInstanceColor;
+in vec4 vInstanceColor;
 
 uniform vec3 uColor;
 uniform sampler2D uTexture;
@@ -17,10 +17,10 @@ uniform bool uInstanced;
 out vec4 fragColor;
 
 void main() {
-    vec3 baseColor = uInstanced ? vInstanceColor : uColor;
+    vec4 baseColor = uInstanced ? vInstanceColor : vec4(uColor, uAlpha);
 
     if (uUnlit == 1) {
-        fragColor = vec4(baseColor, uAlpha);
+        fragColor = baseColor;
         return;
     }
 
@@ -36,7 +36,7 @@ void main() {
     if (uUseTexture == 1) {
         texColor = texture(uTexture, vUv);
     }
-    baseColor = baseColor * texColor.rgb;
+    baseColor = baseColor * texColor;
     float ambient = 0.35;
 
     if (uMode == 8) {
@@ -48,18 +48,18 @@ void main() {
         diff = 0.0;
         ambient = 1.0;
     } else if (uMode == 12) {
-        baseColor = vec3(0.6);
+        baseColor.rgb = vec3(0.6);
         ambient = 0.1;
         vec3 viewDir = normalize(uCamPos - vWorldPos);
         vec3 halfVec = normalize(lightDir + viewDir);
         float spec = pow(max(dot(normal, halfVec), 0.0), 128.0);
-        baseColor += vec3(spec) * 1.5;
+        baseColor.rgb += vec3(spec) * 1.5;
     } else if (uMode == 1) {
         diff = step(0.3, diff);
         ambient = 0.5;
     }
 
-    vec3 lit = baseColor * (ambient + diff * 0.85);
-    fragColor = vec4(lit, uAlpha);
+    vec3 lit = baseColor.rgb * (ambient + diff * 0.85);
+    fragColor = vec4(lit, baseColor.a);
 }
 // === END OF FILE ===

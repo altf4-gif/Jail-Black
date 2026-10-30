@@ -4,7 +4,7 @@ layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aUv;
 
 layout (location = 3) in mat4 instanceModel;
-layout (location = 7) in vec3 instanceColor;
+layout (location = 7) in vec4 instanceColor;
 
 uniform mat4 uViewProj;
 uniform mat4 uModel;
@@ -14,11 +14,11 @@ uniform bool uInstanced;
 out vec3 vNormal;
 out vec2 vUv;
 out vec3 vWorldPos;
-out vec3 vInstanceColor;
+out vec4 vInstanceColor;
 
 void main() {
     mat4 model = uInstanced ? instanceModel : uModel;
-    vec3 color = uInstanced ? instanceColor : uColor;
+    vec4 color = uInstanced ? instanceColor : vec4(uColor, 1.0);
 
     vec4 worldPos = model * vec4(aPos, 1.0);
     vWorldPos = worldPos.xyz;
