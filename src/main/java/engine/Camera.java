@@ -33,9 +33,16 @@ public class Camera {
     public void setPosition(Vector3f pos) { position.set(pos); }
     public Vector3f getUp() { return new Vector3f(up); }
 
-    public Matrix4f getViewProjection(Vector3f camPos, Vector3f target, Vector3f upVec, float aspect) {
-        Matrix4f view = new Matrix4f().lookAt(camPos, target, upVec);
-        Matrix4f projection = new Matrix4f().perspective((float) Math.toRadians(60.0), aspect, 0.1f, 300.0f);
-        return projection.mul(view);
+    public Matrix4f getViewMatrix() {
+        Vector3f front = getFront();
+        return new Matrix4f().lookAt(position, new Vector3f(position).add(front), up);
+    }
+
+    public Matrix4f getProjectionMatrix(float aspect) {
+        return new Matrix4f().perspective((float) Math.toRadians(60.0), aspect, 0.1f, 500.0f);
+    }
+
+    public Matrix4f getViewProjection(float aspect) {
+        return getProjectionMatrix(aspect).mul(getViewMatrix());
     }
 }

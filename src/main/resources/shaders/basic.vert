@@ -18,12 +18,5 @@ void main() {
     vUv = aUv;
 
     vec4 clipPos = uViewProj * worldPos;
-
-    if (uMode == 2) {
-        float snapResolution = 120.0;
-        vec2 grid = vec2(snapResolution, snapResolution);
-        clipPos.xy = floor(clipPos.xy / clipPos.w * grid) / grid * clipPos.w;
-    }
-
     gl_Position = clipPos;
 }
