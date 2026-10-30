@@ -22,7 +22,6 @@ public class Main {
         glCullFace(GL_BACK);
         glEnable(GL_MULTISAMPLE);
 
-        // Shaders
         ShaderProgram basicShader = ShaderProgram.fromResources("shaders/basic.vert", "shaders/basic.frag");
         ShaderProgram outlineShader = ShaderProgram.fromResources("shaders/outline.vert", "shaders/outline.frag");
         ShaderProgram gridShader = ShaderProgram.fromResources("shaders/grid.vert", "shaders/grid.frag");
@@ -31,18 +30,14 @@ public class Main {
 
         Camera camera = new Camera();
 
-        // Meshes
         Mesh boxMesh = MeshFactory.box(1, 1, 1);
         Mesh gridMesh = MeshFactory.grid(100.0f, 100);
         Mesh cubeOutlineMesh = MeshFactory.cubeOutline();
 
-        // Instanced renderer for voxels
         InstancedRenderer instancedRenderer = new InstancedRenderer(boxMesh, 100_000);
 
-        // Framebuffer for scene rendering
         Framebuffer sceneFramebuffer = new Framebuffer(window.getWidth(), window.getHeight());
 
-        // ImGui setup
         ImGui.createContext();
         ImGuiIO io = ImGui.getIO();
         io.setIniFilename(null);
@@ -55,7 +50,6 @@ public class Main {
         imGuiGlfw.init(window.getHandle(), true);
         imGuiGl3.init("#version 330 core");
 
-        // Editor state
         EditorState editor = new EditorState(window, camera,
                 basicShader, outlineShader, gridShader, ghostShader,
                 boxMesh, gridMesh, cubeOutlineMesh,
@@ -63,18 +57,16 @@ public class Main {
 
         GLFW.glfwSetInputMode(window.getHandle(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
 
-        // Scroll callback for zoom
         GLFW.glfwSetScrollCallback(window.getHandle(), (win, xoffset, yoffset) -> {
             if (!ImGui.getIO().getWantCaptureMouse()) {
                 camera.zoom((float) yoffset);
             }
         });
 
-        // Resize callback
         GLFW.glfwSetFramebufferSizeCallback(window.getHandle(), (win, w, h) -> {
             if (w > 0 && h > 0) {
                 sceneFramebuffer.cleanup();
-                sceneFramebuffer = new Framebuffer(w, h);
+                editor.setSceneFramebuffer(new Framebuffer(w, h));
             }
         });
 
@@ -85,18 +77,14 @@ public class Main {
             float dt = (float) (currentTime - lastTime);
             lastTime = currentTime;
 
-            // Clear default framebuffer
             glClearColor(0.1f, 0.1f, 0.1f, 1f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // ImGui frame
             imGuiGlfw.newFrame();
             ImGui.newFrame();
 
-            // Update editor
             editor.updateAndRender(dt);
 
-            // Render ImGui
             ImGui.render();
             imGuiGl3.renderDrawData(ImGui.getDrawData());
 
@@ -108,7 +96,6 @@ public class Main {
             window.swapAndPoll();
         }
 
-        // Cleanup
         instancedRenderer.cleanup();
         sceneFramebuffer.cleanup();
         boxMesh.cleanup();

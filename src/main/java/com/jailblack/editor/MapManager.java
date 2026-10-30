@@ -1,1 +1,127 @@
-package com.jailblack.editor
+package com.jailblack.editor;
+
+import com.jailblack.scene.Scene;
+import com.jailblack.scene.Voxel;
+import com.jailblack.scene.VoxelModel;
+import com.google.gson.*;
+
+import java.io.*;
+import java.nio.file.Files;
+
+public class MapManager {
+    private final Scene scene;
+    private final CommandHistory commandHistory;
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+    public MapManager(Scene scene, CommandHistory commandHistory) {
+        this.scene = scene;
+        this.commandHistory = commandHistory;
+    }
+
+    public void save(String filename) {
+        File dir = new File("maps");
+        if (!dir.exists()) dir.mkdirs();
+
+        JsonObject root = new JsonObject();
+        JsonArray objects = new JsonArray();
+
+        for (VoxelModel model : scene.getModels()) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("name", model.name);
+            obj.addProperty("id", model.id);
+
+            JsonObject transform = new JsonObject();
+            transform.addProperty("px", model.transform.position.x);
+            transform.addProperty("py", model.transform.position.y);
+            transform.addProperty("pz", model.transform.position.z);
+            transform.addProperty("rx", model.transform.rotation.x);
+            transform.addProperty("ry", model.transform.rotation.y);
+            transform.addProperty("rz", model.transform.rotation.z);
+            transform.addProperty("sx", model.transform.scale.x);
+            transform.addProperty("sy", model.transform.scale.y);
+            transform.addProperty("sz", model.transform.scale.z);
+            obj.add("transform", transform);
+
+            JsonArray voxels = new JsonArray();
+            for (Voxel v : model.voxels) {
+                JsonObject voxel = new JsonObject();
+                voxel.addProperty("x", v.x);
+                voxel.addProperty("y", v.y);
+                voxel.addProperty("z", v.z);
+                voxel.addProperty("color", v.color);
+                voxels.add(voxel);
+            }
+            obj.add("voxels", voxels);
+            objects.add(obj);
+        }
+
+        root.add("objects", objects);
+
+        try (Writer writer = new FileWriter("maps/" + filename + ".json")) {
+            gson.toJson(root, writer);
+            System.out.println("Map saved: " + filename);
+        } catch (IOException e) {
+            System.err.println("Save error: " + e.getMessage());
+        }
+    }
+
+    public void load(String filename) {
+        File file = new File("maps/" + filename + ".json");
+        if (!file.exists()) {
+            System.err.println("File not found: " + filename);
+            return;
+        }
+
+        try {
+            String json = new String(Files.readAllBytes(file.toPath()));
+            JsonObject root = gson.fromJson(json, JsonObject.class);
+            JsonArray objects = root.getAsJsonArray("objects");
+
+            scene.clear();
+
+            for (JsonElement element : objects) {
+                JsonObject obj = element.getAsJsonObject();
+                VoxelModel model = new VoxelModel();
+                model.name = obj.get("name").getAsString();
+                model.id = obj.get("id").getAsString();
+
+                JsonObject t = obj.getAsJsonObject("transform");
+                model.transform.position.x = t.get("px").getAsFloat();
+                model.transform.position.y = t.get("py").getAsFloat();
+                model.transform.position.z = t.get("pz").getAsFloat();
+                model.transform.rotation.x = t.get("rx").getAsFloat();
+                model.transform.rotation.y = t.get("ry").getAsFloat();
+                model.transform.rotation.z = t.get("rz").getAsFloat();
+                model.transform.scale.x = t.get("sx").getAsFloat();
+                model.transform.scale.y = t.get("sy").getAsFloat();
+                model.transform.scale.z = t.get("sz").getAsFloat();
+
+                JsonArray voxels = obj.getAsJsonArray("voxels");
+                for (JsonElement ve : voxels) {
+                    JsonObject v = ve.getAsJsonObject();
+                    model.voxels.add(new Voxel(
+                        v.get("x").getAsInt(),
+                        v.get("y").getAsInt(),
+                        v.get("z").getAsInt(),
+                        v.get("color").getAsString()
+                    ));
+                }
+
+                scene.addModel(model);
+            }
+
+            System.out.println("Map loaded: " + filename);
+        } catch (Exception e) {
+            System.err.println("Load error: " + e.getMessage());
+        }
+    }
+
+    public String[] getSavedMaps() {
+        File dir = new File("maps");
+        if (!dir.exists()) return new String[0];
+        String[] files = dir.list((d, name) -> name.endsWith(".json"));
+        if (files == null) return new String[0];
+        for (int i = 0; i < files.length; i++) files[i] = files[i].replace(".json", "");
+        return files;
+    }
+}
