@@ -1,38 +1,39 @@
-# Java 3D Engine (
+# Jail-Black
+
+Java 3D voxel editor/engine built on LWJGL 3 + ImGui.
+
+## Build & Run
+
 ```
 
-Или, если установлен глобальный Gradle:
+run.bat
 
 ```
+
+Or, if Gradle is installed:
+
+```
+
 gradle run
+
 ```
 
-## Через IntelliJ IDEA
+## IntelliJ IDEA
 
 1. File → Open → выбрать папку проекта
 2. Дождаться Gradle sync
-3. Открыть `src/main/java/game/Main.java`, нажать зелёный ▶
+3. Открыть `src/main/java/com/jailblack/Main.java`, нажать зелёный ▶
 
-## Структура
+## Исправление (эта версия)
 
-```
-src/main/java
-```
+Файл `src/main/java/com/jailblack/engine/InstancedRenderer.java` исправлен:
+в LWJGL 3 у `glBufferSubData` нет перегрузки с параметром `size`.
+Вместо `glBufferSubData(target, offset, size, float[])` теперь используется
+`FloatBuffer.wrap(data, 0, count * 19)` и трёхаргументный вызов
+`glBufferSubData(target, offset, buffer)`.
 
-## Как добавить объект в сцену
+## Примечание
 
-```
-scene
-```
-
-## Что дальше (идеи)
-
-1. Текстуры (UV + `glTexImage2D`)
-2. Загрузка `.obj`
-3. Материалы и нормальные карты
-4. ECS и сцены
-5. Анимация, физика
-
-</BDS:create_file>
-<BDS:create_file
-
+В архиве нет папки `src/main/resources/shaders/` (шейдеры .vert/.frag),
+так как они не были найдены в репозитории при сборке. Если проект требует
+шейдеры, положите их в `src/main/resources/shaders/`.

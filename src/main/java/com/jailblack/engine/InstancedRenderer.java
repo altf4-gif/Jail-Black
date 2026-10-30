@@ -5,6 +5,7 @@ import com.jailblack.scene.VoxelModel;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
+import java.nio.FloatBuffer;
 import java.util.List;
 
 import static org.lwjgl.opengl.GL33.*;
@@ -68,7 +69,8 @@ public class InstancedRenderer {
 
         baseMesh.bind();
         glBindBuffer(GL_ARRAY_BUFFER, instanceVbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, (long) count * 19 * Float.BYTES, instanceData);
+        FloatBuffer buffer = FloatBuffer.wrap(instanceData, 0, count * 19);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, buffer);
         glDrawElementsInstanced(GL_TRIANGLES, baseMesh.getIndexCount(), GL_UNSIGNED_INT, 0L, count);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         baseMesh.unbind();

@@ -10,7 +10,7 @@ public class Camera {
     private final Vector3f up = new Vector3f(0f, 1f, 0f);
 
     public Camera() {
-        position = new Vector3f(0f, 3f, 8f); 
+        position = new Vector3f(0f, 3f, 8f);
     }
 
     public void rotate(float deltaX, float deltaY) {
