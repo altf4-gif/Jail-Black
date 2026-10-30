@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ============================================
-echo   Java 3D Engine - Map Editor
+echo   Jail-Black Studio - Direct Compilation
 echo ============================================
 echo.
 
@@ -26,13 +26,18 @@ if not exist "..\JBfly\imgui-java-binding-1.86.11.jar" (
     curl -L -o ..\JBfly\imgui-java-app-1.86.11.jar https://repo1.maven.org/maven2/io/github/spair/imgui-java-app/1.86.11/imgui-java-app-1.86.11.jar
 )
 
+if not exist "..\JBfly\gson-2.10.1.jar" (
+    echo Downloading Gson...
+    curl -L -o ..\JBfly\gson-2.10.1.jar https://repo1.maven.org/maven2/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar
+)
+
 set LIBS=..\JBfly\lwjgl-3.3.6.jar;..\JBfly\lwjgl-glfw-3.3.6.jar;..\JBfly\lwjgl-opengl-3.3.6.jar;..\JBfly\joml-1.10.7.jar
-set LIBS=%LIBS%;..\JBfly\imgui-java-binding-1.86.11.jar;..\JBfly\imgui-java-lwjgl3-1.86.11.jar;..\JBfly\imgui-java-natives-windows-1.86.11.jar;..\JBfly\imgui-java-app-1.86.11.jar
+set LIBS=%LIBS%;..\JBfly\imgui-java-binding-1.86.11.jar;..\JBfly\imgui-java-lwjgl3-1.86.11.jar;..\JBfly\imgui-java-natives-windows-1.86.11.jar;..\JBfly\imgui-java-app-1.86.11.jar;..\JBfly\gson-2.10.1.jar
 set NATIVES=..\JBfly\lwjgl-3.3.6-natives-windows.jar;..\JBfly\lwjgl-glfw-3.3.6-natives-windows.jar;..\JBfly\lwjgl-opengl-3.3.6-natives-windows.jar
 
 echo [1/2] Compiling...
 if not exist "out" mkdir out
-javac -d out -cp "%LIBS%" src\main\java\game\*.java src\main\java\engine\*.java
+javac -d out -cp "%LIBS%" -sourcepath src/main/java src\main\java\com\jailblack\*.java src\main\java\com\jailblack\engine\*.java src\main\java\com\jailblack\scene\*.java src\main\java\com\jailblack\editor\*.java
 
 if errorlevel 1 (
     echo.
@@ -44,7 +49,7 @@ if errorlevel 1 (
 echo Compilation successful.
 echo.
 echo [2/2] Launching game...
-java --enable-native-access=ALL-UNNAMED -cp "out;src\main\resources;%LIBS%;%NATIVES%" game.Main
+java --enable-native-access=ALL-UNNAMED -cp "out;src\main\resources;%LIBS%;%NATIVES%" com.jailblack.Main
 
 echo.
 echo ============================================

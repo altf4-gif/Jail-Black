@@ -1,47 +1,49 @@
 plugins {
+    id 'java'
     id 'application'
 }
 
-group = 'game'
-version = '0.1.0'
+group = 'com.jailblack'
+version = '1.0.0'
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+application.mainClass = 'com.jailblack.Main'
 
 repositories {
     mavenCentral()
+    maven { url 'https://jitpack.io' }
 }
 
-def lwjglVersion = '3.3.3'
-def jomlVersion = '1.10.5'
-
-def currentOs = org.gradle.internal.os.OperatingSystem.current()
-def arch = System.getProperty('os.arch')
-def natives
-if (currentOs.windows) {
-    natives = 'natives-windows'
-} else if (currentOs.macOsX) {
-    natives = (arch == 'aarch64') ? 'natives-macos-arm64' : 'natives-macos'
-} else {
-    natives = 'natives-linux'
+ext {
+    lwjglVersion = '3.3.6'
+    jomlVersion = '1.10.7'
+    imguiVersion = '1.86.11'
+    gsonVersion = '2.10.1'
+    lwjglNatives = 'natives-windows'
 }
 
 dependencies {
     implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
 
-    implementation 'org.lwjgl:lwjgl'
-    implementation 'org.lwjgl:lwjgl-glfw'
-    implementation 'org.lwjgl:lwjgl-opengl'
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-opengl"
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
+
     implementation "org.joml:joml:$jomlVersion"
-
-    runtimeOnly "org.lwjgl:lwjgl::$natives"
-    runtimeOnly "org.lwjgl:lwjgl-glfw::$natives"
-    runtimeOnly "org.lwjgl:lwjgl-opengl::$natives"
+    implementation "io.github.spair:imgui-java-binding:$imguiVersion"
+    implementation "io.github.spair:imgui-java-lwjgl3:$imguiVersion"
+    implementation "io.github.spair:imgui-java-natives-windows:$imguiVersion"
+    implementation "io.github.spair:imgui-java-app:$imguiVersion"
+    implementation "com.google.code.gson:gson:$gsonVersion"
 }
 
-application {
-    mainClass = 'game.Main'
+run {
+    standardInput = System.in
 }
 
-tasks.named('run') {
-    if (org.gradle.internal.os.OperatingSystem.current().macOsX) {
-        jvmArgs += ['-XstartOnFirstThread']
-    }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
