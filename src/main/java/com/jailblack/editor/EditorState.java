@@ -61,6 +61,7 @@ public class EditorState {
 
     private final Vector3f ghostPosition = new Vector3f();
     private boolean showGhost = false;
+    private boolean cursorInsideModel = false;
 
     private boolean showNewModelDialog = false;
     private final ImString newModelName = new ImString("NewModel", 64);
@@ -83,6 +84,10 @@ public class EditorState {
 
     private final Set<Integer> heldKeys = new HashSet<>();
     private boolean leftClickHandled = false;
+
+    // Подсказки — показываются первые 10 секунд работы
+    private float hintTimer = 10.0f;
+    private boolean showHints = true;
 
     public EditorState(Window window, Camera camera,
                        ShaderProgram basicShader, ShaderProgram outlineShader,
@@ -146,6 +151,11 @@ public class EditorState {
     }
 
     private void handleInput(float dt) {
+        if (hintTimer > 0f) {
+            hintTimer -= dt;
+            if (hintTimer <= 0f) showHints = false;
+        }
+
         boolean uiWantsKeyboard = ImGui.getIO().getWantCaptureKeyboard();
 
         if (uiWantsKeyboard) {
@@ -226,6 +236,14 @@ public class EditorState {
         } else {
             leftClickHandled = false;
         }
+
+        if (GLFW.glfwGetMouseButton(win, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS
+                && isMouseOverViewport()
+                && !ImGui.getIO().getWantCaptureMouse()
+                && showGhost) {
+            // RMB-удаление доступно только в edit-режиме и когда есть цель
+            // (камера вращается через cursor callback, здесь не мешаем)
+        }
     }
 
     private boolean isMouseOverViewport() {
@@ -245,6 +263,7 @@ public class EditorState {
 
     private void updateGhostVoxel() {
         showGhost = false;
+        cursorInsideModel = false;
 
         if (editMode != EditMode.EDIT_MODE) return;
         if (selectedObjects.isEmpty()) return;
@@ -257,6 +276,12 @@ public class EditorState {
 
         Vector3f modelPos = hoveredModel.transform.position;
         Vector3f localPos = new Vector3f(camPos).sub(modelPos);
+
+        // Проверка: находится ли камера внутри объёма модели
+        cursorInsideModel =
+                camPos.x >= modelPos.x && camPos.x < modelPos.x + hoveredModel.sizeX &&
+                camPos.y >= modelPos.y && camPos.y < modelPos.y + hoveredModel.sizeY &&
+                camPos.z >= modelPos.z && camPos.z < modelPos.z + hoveredModel.sizeZ;
 
         int[] hit = ddaRaycast(localPos, camDir,
                 hoveredModel.sizeX, hoveredModel.sizeY, hoveredModel.sizeZ,
@@ -391,7 +416,7 @@ public class EditorState {
 
     private void handleVoxelEdit() {
         if (!showGhost || hoveredModel == null) {
-            statusMessage = "No valid target";
+            statusMessage = "No valid target — move cursor over the model";
             return;
         }
 
@@ -513,25 +538,43 @@ public class EditorState {
 
         glDisable(GL_BLEND);
 
+        // Призрак-воксель + подсветка ячейки
         if (showGhost && editMode == EditMode.EDIT_MODE && hoveredModel != null) {
+            Vector3f modelPos = hoveredModel.transform.position;
+            float gx = modelPos.x + ghostPosition.x;
+            float gy = modelPos.y + ghostPosition.y;
+            float gz = modelPos.z + ghostPosition.z;
+
             ghostShader.use();
             ghostShader.setUniform("uViewProj", viewProj);
             ghostShader.setUniform("uColor", currentColor);
-            ghostShader.setUniform("uAlpha", 0.6f);
+            ghostShader.setUniform("uAlpha", 0.45f);
             ghostShader.setUniform("uLightDir", new Vector3f(0.5f, 1.0f, 0.3f).normalize());
-            Matrix4f ghostMatrix = new Matrix4f().translation(
-                    ghostPosition.x + hoveredModel.transform.position.x,
-                    ghostPosition.y + hoveredModel.transform.position.y,
-                    ghostPosition.z + hoveredModel.transform.position.z);
+            Matrix4f ghostMatrix = new Matrix4f().translation(gx, gy, gz);
             ghostShader.setUniform("uModel", ghostMatrix);
             boxMesh.draw();
+
+            // Wireframe вокруг призрака — чтобы ячейка была видна всегда
+            outlineShader.use();
+            outlineShader.setUniform("uViewProj", viewProj);
+            outlineShader.setUniform("uColor", new Vector3f(0.2f, 1.0f, 1.0f));
+            Matrix4f ghostOutline = new Matrix4f().translation(gx, gy, gz).scale(1.01f);
+            outlineShader.setUniform("uModel", ghostOutline);
+            cubeOutlineMesh.draw();
         }
 
+        // Границы модели: красная если камера снаружи, зелёная если внутри
         if (editMode == EditMode.EDIT_MODE && !selectedObjects.isEmpty()) {
             VoxelModel model = selectedObjects.get(0);
             outlineShader.use();
             outlineShader.setUniform("uViewProj", viewProj);
-            outlineShader.setUniform("uColor", new Vector3f(0.2f, 1.0f, 0.2f));
+
+            if (cursorInsideModel) {
+                outlineShader.setUniform("uColor", new Vector3f(0.2f, 1.0f, 0.2f)); // green
+            } else {
+                outlineShader.setUniform("uColor", new Vector3f(1.0f, 0.25f, 0.25f)); // red
+            }
+
             Matrix4f boundsMatrix = new Matrix4f()
                     .translation(
                             model.transform.position.x + model.sizeX / 2.0f,
@@ -542,6 +585,7 @@ public class EditorState {
             cubeOutlineMesh.draw();
         }
 
+        // Контур выделенных вокселей
         if (!selectedObjects.isEmpty()) {
             outlineShader.use();
             outlineShader.setUniform("uViewProj", viewProj);
@@ -569,6 +613,7 @@ public class EditorState {
         renderProperties();
         renderViewport();
         renderStatusBar();
+        renderHintsOverlay();
 
         if (showNewModelDialog) renderNewModelDialog();
     }
@@ -847,13 +892,57 @@ public class EditorState {
         ImGui.text("|");
         ImGui.sameLine();
 
+        if (cursorInsideModel) {
+            ImGui.textColored(0.4f, 1.0f, 0.4f, 1.0f, "Inside: YES");
+        } else {
+            ImGui.textColored(1.0f, 0.5f, 0.4f, 1.0f, "Inside: NO");
+        }
+        ImGui.sameLine();
+        ImGui.text("|");
+        ImGui.sameLine();
+
         int totalVoxels = 0;
         for (VoxelModel m : scene.getModels()) totalVoxels += m.getVoxelCount();
-        ImGui.text("Total Voxels: " + totalVoxels);
+        ImGui.text("Voxels: " + totalVoxels);
         ImGui.sameLine();
         ImGui.text("|");
         ImGui.sameLine();
         ImGui.textColored(0.4f, 1.0f, 0.4f, 1.0f, statusMessage);
+
+        ImGui.end();
+    }
+
+    /** Оверлей с подсказками управления, показывается первые ~10 секунд. */
+    private void renderHintsOverlay() {
+        if (!showHints) return;
+
+        ImGui.setNextWindowPos(260, TOP_OFFSET + 8, ImGuiCond.Always);
+        ImGui.setNextWindowSize(420, 190, ImGuiCond.Always);
+        ImGui.begin("##HintsOverlay",
+                ImGuiWindowFlags.NoTitleBar |
+                ImGuiWindowFlags.NoResize |
+                ImGuiWindowFlags.NoMove |
+                ImGuiWindowFlags.NoSavedSettings |
+                ImGuiWindowFlags.NoFocusOnAppearing |
+                ImGuiWindowFlags.NoInputs |
+                ImGuiWindowFlags.AlwaysAutoResize);
+
+        ImGui.textColored(1.0f, 0.85f, 0.2f, 1.0f, "Quick controls:");
+        ImGui.separator();
+
+        if (editMode == EditMode.EDIT_MODE) {
+            ImGui.bulletText("LMB — place / paint / remove voxel");
+            ImGui.bulletText("B — add, X — remove, G — paint, I — pick color");
+        } else {
+            ImGui.bulletText("LMB — select object");
+            ImGui.bulletText("Shift + LMB — multi-select");
+        }
+
+        ImGui.bulletText("RMB + Move — rotate camera");
+        ImGui.bulletText("MMB + Move — pan camera");
+        ImGui.bulletText("Scroll — zoom");
+        ImGui.bulletText("WASD / Space / Shift — fly camera");
+        ImGui.bulletText("F — focus selected model");
 
         ImGui.end();
     }
@@ -921,6 +1010,8 @@ public class EditorState {
                     editMode = EditMode.EDIT_MODE;
                     currentTool = Tool.ADD_VOXEL;
                     statusMessage = "Created model: " + newModelName.get();
+                    showHints = true;
+                    hintTimer = 10.0f;
                 }
                 showNewModelDialog = false;
                 ImGui.closeCurrentPopup();
@@ -944,7 +1035,10 @@ public class EditorState {
             scene.getModels().clear();
             selectedObjects.clear();
             currentTool = Tool.ADD_VOXEL;
+            editMode = EditMode.EDIT_MODE;
             statusMessage = "New model workspace: " + editorUi.getActiveModelName();
+            showHints = true;
+            hintTimer = 10.0f;
             return;
         }
 
